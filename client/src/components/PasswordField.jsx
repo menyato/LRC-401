@@ -80,8 +80,14 @@ export function PasswordField({
 
       {error && <p className="form-error">{error}</p>}
 
+      {/*
+        One column on a phone. These are sentences, not labels — two columns at
+        phone width wraps every one of them, and this list appears on the
+        accept-invitation and change-password screens, which is where a new
+        volunteer first meets the app.
+      */}
       {showStrength && (
-        <ul id={`${id}-rules`} className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+        <ul id={`${id}-rules`} className="mt-2 grid grid-cols-1 gap-x-3 gap-y-1 sm:grid-cols-2">
           {RULES.map((rule) => {
             const passed = rule.test(value);
 

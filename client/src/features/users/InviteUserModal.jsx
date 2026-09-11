@@ -185,7 +185,12 @@ export function InviteUserModal({ isOpen, onClose }) {
 
           <fieldset className="mb-4">
             <legend className="label">{t('people.teams')}</legend>
-            <div className="grid grid-cols-2 gap-1.5">
+            {/*
+              One column on a phone: team names are entered by an admin and
+              shown in either language, so their length is not knowable here.
+              A long Arabic name in a 150px column wraps under its checkbox.
+            */}
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {teams.map((team) => (
                 <label key={team.id} className="flex items-center gap-2 text-sm text-stone-700">
                   <input

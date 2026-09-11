@@ -282,7 +282,24 @@
   /* --- Form controls ---------------------------------------------------- */
 
   .input {
-    @apply w-full rounded-lg border border-surface-border bg-white px-3 py-2.5 text-sm
+    /*
+      16px ON PHONES, 14px FROM `sm:` UP — AND THE 16 IS NOT A STYLE CHOICE.
+
+      iOS Safari zooms the viewport whenever a focused control's font-size is
+      below 16px. The zoom is not undone on blur, so every tap into a field
+      left the user pinching back out, on an app that is filled in one-handed
+      on a phone in a garage.
+
+      The other way to stop it is `maximum-scale=1` on the viewport meta, which
+      also disables PINCH zoom for everyone — see index.html, where that is
+      deliberately not done. Sizing the text correctly costs nothing; taking
+      zoom away from someone who needs it is not acceptable in an app people
+      have to read in a hurry.
+
+      14px returns at `sm:`, where the density is wanted and no phone keyboard
+      is involved.
+    */
+    @apply w-full rounded-lg border border-surface-border bg-white px-3 py-2.5 text-base sm:text-sm
            placeholder:text-placeholder focus:border-brand-600 focus:outline-none
            focus:ring-1 focus:ring-brand-600 disabled:bg-stone-50 disabled:text-stone-500;
     /*
@@ -372,6 +389,26 @@
 
   .table tbody tr:hover {
     @apply bg-stone-50;
+  }
+}
+
+/* ==========================================================================
+   MOBILE FORM CONTROLS
+   ==========================================================================
+   The same iOS zoom rule as `.input` above, for the handful of controls that
+   do not use that class — a bare <select> in a toolbar, a filter box.
+
+   The `:not()` pair is there for specificity, not for the filter: it lifts the
+   selector to 0-2-1 so it also beats a `text-xs` utility written directly on
+   the element. Checkboxes and radios are excluded because font-size does not
+   affect them and iOS does not zoom for them.
+   ========================================================================== */
+
+@media (max-width: 639.98px) {
+  input:not([type='checkbox']):not([type='radio']),
+  select:not([hidden]):not([disabled]),
+  textarea:not([hidden]) {
+    font-size: 1rem; /* 16px — below this, iOS Safari zooms the page */
   }
 }
 
