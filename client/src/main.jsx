@@ -19,6 +19,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import App from './App';
+import { ThemeProvider } from '@/features/theme/ThemeProvider';
 import { AuthProvider } from '@/features/auth/AuthProvider';
 import { ToastProvider } from '@/components/Toast';
 import '@/lib/i18n';

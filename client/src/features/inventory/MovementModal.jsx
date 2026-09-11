@@ -141,7 +141,7 @@ export function MovementModal({ isOpen, onClose, item }) {
               className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border p-3
                           text-xs font-medium transition-colors ${
                             direction === option.value
-                              ? 'border-brand-600 bg-brand-50 text-brand-700'
+                              ? 'border-brand-600 bg-brand-subtle text-brand-strong'
                               : 'border-surface-border bg-white text-stone-600 hover:bg-stone-50'
                           }`}
             >

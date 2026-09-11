@@ -44,7 +44,7 @@ export function LanguageToggle({ compact = false }) {
             // lib/i18n.js, which sets <html dir> and flips the whole layout.
             onClick={() => i18n.changeLanguage(language.code)}
             className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              isActive ? 'bg-brand-600 text-white' : 'text-stone-600 hover:bg-stone-100'
+              isActive ? 'bg-brand-600 text-pure-white' : 'text-stone-600 hover:bg-stone-100'
             }`}
             // Tells a screen reader which one is currently selected.
             aria-pressed={isActive}

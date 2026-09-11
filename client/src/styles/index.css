@@ -17,20 +17,161 @@
 @tailwind utilities;
 
 /* ==========================================================================
+   THEME TOKENS
+   ==========================================================================
+   Colour VALUES live here as CSS variables; Tailwind's colour NAMES point at
+   them (see tailwind.config.js). Switching theme swaps the variables, so every
+   `bg-white`, `text-stone-900` and `border-surface-border` already written in
+   the app changes with it. No `dark:` variant is needed on each one.
+
+   WHY THIS RATHER THAN `dark:` EVERYWHERE
+
+   The first attempt added `dark:` variants by hand. An audit then found THIRTY
+   components with no dark support at all — including the login page wrapper,
+   which is why dark mode appeared to apply only to the login card and not to
+   the page behind it. Patching thirty files would have fixed that day's list
+   and broken again with the next component anybody wrote.
+
+   Inverting the neutral ramp is the whole trick: in dark mode stone-50 becomes
+   near-black and stone-900 near-white, so a component written the natural way
+   —"dark grey text on white" — reads as"light grey on near-black" without
+   being touched, and stays legible either way.
+
+   Values are space-separated RGB CHANNELS, not hex, so Tailwind's opacity
+   modifiers (`bg-stone-900/60`) still work.
+   ========================================================================== */
+
+@layer base {
+  :root {
+    /* Neutrals — warm stone. Light theme: 50 lightest, 950 darkest. */
+    --stone-50:  250 250 249;
+    --stone-100: 245 245 244;
+    --stone-200: 231 229 228;
+    --stone-300: 214 211 209;
+    --stone-400: 168 162 158;
+    --stone-500: 120 113 108;
+    --stone-600:  87  83  78;
+    --stone-700:  68  64  60;
+    --stone-800:  41  37  36;
+    --stone-900:  28  25  23;
+    --stone-950:  12  10   9;
+
+    /*
+      Three distinct surface steps, not two. The original palette had the page
+      at #fafaf9 and cards at #ffffff — 1.3% apart in lightness, invisible on a
+      phone in daylight, which is exactly where this app is used. Cards, tables
+      and modals blurred into one flat sheet.
+    */
+    --surface:          255 255 255;   /* a card, a modal, a table row  */
+    --surface-muted:    241 239 237;   /* the page BEHIND the cards     */
+    --surface-elevated: 255 255 255;   /* a popover above a card        */
+    --surface-border:   214 209 204;   /* strong enough to read outdoors */
+
+    /* Status. Deep and saturated so they read against white. */
+    --status-ok:           21 128  61;
+    --status-ok-bg:       240 253 244;
+    --status-warn:        180  83   9;
+    --status-warn-bg:     255 251 235;
+    --status-critical:    185  28  28;
+    --status-critical-bg: 254 242 242;
+    --status-missing:      82  82  91;
+    --status-missing-bg:  250 250 250;
+
+    /* Solid destructive-button fill. See .btn-danger. */
+    --danger-solid:       185  28  28;
+
+    /*
+      The "selected" chip — an active nav item, a chosen radio card, the logo
+      badge. A brand-tinted ground with brand-coloured text on it.
+
+      These need their own tokens because the brand scale itself must NOT
+      invert: brand-600 is the official LRC red and stays that exact red in
+      both themes. But a brand TINT used as a background has to flip to a deep
+      maroon in dark mode, and the text on it has to go light — the opposite
+      direction from the scale it is named after.
+    */
+    --brand-subtle:       254 242 243;
+    --brand-strong:       193  22  38;
+
+    /*
+      Input placeholder. Its own token because `stone-400` measured only
+      2.52:1 on white — under the 3:1 floor for meaningful UI text — while the
+      same token reads at a comfortable 4.76:1 in dark mode. One class cannot
+      serve both, so the value is named rather than guessed at per component.
+      Both themes now land near 4.8:1: legible, but still clearly lighter than
+      real input text so a placeholder is never mistaken for an answer.
+    */
+    --placeholder:        120 113 108;
+  }
+
+  /*
+    Dark theme. The neutral ramp is INVERTED — 50 and 950 swap, 100 and 900
+    swap, and so on — which is what lets existing utility classes work in both
+    themes untouched.
+
+    Warm near-blacks, deliberately never pure #000: on an OLED phone at night
+    pure black is uncomfortable to read against, and the brand red vibrates
+    badly on it.
+  */
+  .dark {
+    --stone-50:   28  25  23;
+    --stone-100:  41  37  36;
+    --stone-200:  68  64  60;
+    --stone-300:  87  80  74;
+    --stone-400: 140 132 126;
+    --stone-500: 168 162 158;
+    --stone-600: 197 191 186;
+    --stone-700: 214 211 209;
+    --stone-800: 231 229 228;
+    --stone-900: 245 245 244;
+    --stone-950: 250 250 249;
+
+    --surface:           28  25  23;
+    --surface-muted:     15  13  12;
+    --surface-elevated:  44  39  36;
+    --surface-border:    87  80  74;
+
+    /*
+      Status on a dark ground: LIGHTER and LESS saturated than the light-mode
+      values. That is the opposite of what feels right, but a deep #b91c1c on
+      near-black is close to unreadable, and"is this critical?" is what
+      decides whether an ambulance leaves short of equipment.
+    */
+    --status-ok:           74 222 128;
+    --status-ok-bg:         5  46  22;
+    --status-warn:        251 191  36;
+    --status-warn-bg:      41  37  36;
+    --status-critical:    248 113 113;
+    --status-critical-bg:  69  10  10;
+    --status-missing:     168 162 158;
+    --status-missing-bg:   28  25  23;
+
+    /* Brighter than light mode so it reads as a button against a dark
+       page, still dark enough for white text at 4.5:1. */
+    --danger-solid:      220  38  38;
+
+    /* Deep maroon ground, light red text — see the light values above. */
+    --brand-subtle:       59  14  20;
+    --brand-strong:      247 165 171;
+
+    --placeholder:       140 132 126;
+  }
+}
+
+/* ==========================================================================
    BASE
    ========================================================================== */
 
 @layer base {
   html {
-    /* Smooth in-page jumps, e.g. "scroll to the first unanswered question". */
+    /* Smooth in-page jumps, e.g."scroll to the first unanswered question". */
     scroll-behavior: smooth;
     /* Keeps a focused input clear of the sticky header when the page scrolls. */
     scroll-padding-top: 5rem;
   }
 
   body {
-    @apply bg-surface-muted text-stone-900 font-sans antialiased
-           dark:bg-surface-darkMuted dark:text-stone-100;
+    @apply bg-surface-muted text-stone-900 font-sans antialiased;
     /* Prevents iOS Safari from silently enlarging text in landscape. */
     -webkit-text-size-adjust: 100%;
 
@@ -68,7 +209,7 @@
   }
 
   /*
-    Respect the OS "reduce motion" setting.
+    Respect the OS"reduce motion" setting.
 
     Some people get motion sickness or migraines from animated interfaces, and
     this setting is how they say so. It turns the movement off while leaving the
@@ -109,22 +250,28 @@
   }
 
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800;
+    /* Brand red is the same in both themes, so the label is literally white
+       in both — `text-white` now follows the theme and would go dark. */
+    @apply btn bg-brand-600 text-pure-white hover:bg-brand-700 active:bg-brand-800;
   }
 
   .btn-secondary {
-    @apply btn border border-surface-border bg-white text-stone-700 hover:bg-stone-50
-           dark:border-surface-darkBorder dark:bg-surface-darkElevated dark:text-stone-200
-           dark:hover:bg-stone-700;
+    @apply btn border border-surface-border bg-white text-stone-700 hover:bg-stone-50;
   }
 
   .btn-ghost {
-    @apply btn text-stone-600 hover:bg-stone-100
-           dark:text-stone-300 dark:hover:bg-surface-darkElevated;
+    @apply btn text-stone-600 hover:bg-stone-100;
   }
 
   .btn-danger {
-    @apply btn bg-status-critical text-white hover:brightness-110;
+    /*
+      NOT bg-status-critical. That token lightens in dark mode so it stays
+      readable as TEXT on a dark ground — but as a solid BUTTON fill it would
+      leave white-on-#f87171 at about 2.5:1, well under the 4.5:1 minimum.
+      A destructive button gets its own value, kept dark enough for white in
+      both themes.
+    */
+    @apply btn bg-danger-solid text-pure-white hover:brightness-110;
   }
 
   .btn-sm {
@@ -136,11 +283,8 @@
 
   .input {
     @apply w-full rounded-lg border border-surface-border bg-white px-3 py-2.5 text-sm
-           placeholder:text-stone-400 focus:border-brand-600 focus:outline-none
-           focus:ring-1 focus:ring-brand-600 disabled:bg-stone-50 disabled:text-stone-500
-           dark:border-surface-darkBorder dark:bg-surface-darkElevated dark:text-stone-100
-           dark:placeholder:text-stone-500 dark:disabled:bg-surface-dark
-           dark:disabled:text-stone-500;
+           placeholder:text-placeholder focus:border-brand-600 focus:outline-none
+           focus:ring-1 focus:ring-brand-600 disabled:bg-stone-50 disabled:text-stone-500;
     /*
       Fluidity: a field that changes instantly on focus feels abrupt. 150ms is
       long enough to read as movement and short enough never to feel laggy.
@@ -154,23 +298,22 @@
   }
 
   .label {
-    @apply mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300;
+    @apply mb-1.5 block text-sm font-medium text-stone-700;
   }
 
   .form-error {
-    @apply mt-1 text-xs text-status-critical dark:text-statusDark-critical;
+    @apply mt-1 text-xs text-status-critical;
   }
 
   /* --- Surfaces --------------------------------------------------------- */
 
   .card {
     @apply rounded-card border border-surface-border bg-white shadow-card
-           dark:border-surface-darkBorder dark:bg-surface-dark dark:shadow-none;
+           dark:shadow-none;
   }
 
   .card-header {
-    @apply flex items-center justify-between gap-3 border-b border-surface-border px-4 py-3
-           dark:border-surface-darkBorder;
+    @apply flex items-center justify-between gap-3 border-b border-surface-border px-4 py-3;
   }
 
   .card-body {
@@ -219,18 +362,15 @@
   }
 
   .table th {
-    @apply dark:border-surface-darkBorder dark:bg-surface-darkMuted dark:text-stone-300;
     @apply whitespace-nowrap border-b border-surface-border px-3 py-2.5 text-start
            text-xs font-semibold uppercase tracking-wide text-stone-500;
   }
 
   .table td {
-    @apply dark:border-surface-darkBorder dark:text-stone-200;
     @apply border-b border-surface-border px-3 py-2.5 align-middle;
   }
 
   .table tbody tr:hover {
-    @apply dark:bg-surface-darkElevated;
     @apply bg-stone-50;
   }
 }
@@ -251,7 +391,7 @@
 /*
   Latin digits in Arabic mode. Equipment counts, vehicle numbers and dates are
   written with Western digits at the station, and switching them to Eastern
-  Arabic numerals would make the two languages disagree about what "472" is.
+  Arabic numerals would make the two languages disagree about what"472" is.
 */
 [dir='rtl'] {
   font-feature-settings: normal;
@@ -270,8 +410,59 @@
     display: none !important;
   }
 
+  /*
+    FORCE THE LIGHT PALETTE ON PAPER.
+
+    Without this, printing while dark mode is on sends a near-black page to the
+    printer: unreadable once the ink dries light-on-dark, and it empties a
+    cartridge over one report. Redefining the variables here overrides `.dark`
+    for print only, so `bg-white` is white and `text-stone-900` is black again
+    — the same classes, a different substrate.
+  */
+  :root,
+  .dark {
+    --stone-50:  250 250 249;
+    --stone-100: 245 245 244;
+    --stone-200: 231 229 228;
+    --stone-300: 214 211 209;
+    --stone-400: 168 162 158;
+    --stone-500: 120 113 108;
+    --stone-600:  87  83  78;
+    --stone-700:  68  64  60;
+    --stone-800:  41  37  36;
+    --stone-900:  28  25  23;
+    --stone-950:  12  10   9;
+
+    --surface:          255 255 255;
+    --surface-muted:    255 255 255;   /* no grey ground on paper */
+    --surface-elevated: 255 255 255;
+    --surface-border:   214 209 204;
+
+    --status-ok:           21 128  61;
+    --status-ok-bg:       255 255 255;
+    --status-warn:        180  83   9;
+    --status-warn-bg:     255 255 255;
+    --status-critical:    185  28  28;
+    --status-critical-bg: 255 255 255;
+    --status-missing:      82  82  91;
+    --status-missing-bg:  255 255 255;
+
+    --brand-subtle:       254 242 243;
+    --brand-strong:       193  22  38;
+
+    /*
+      Input placeholder. Its own token because `stone-400` measured only
+      2.52:1 on white — under the 3:1 floor for meaningful UI text — while the
+      same token reads at a comfortable 4.76:1 in dark mode. One class cannot
+      serve both, so the value is named rather than guessed at per component.
+      Both themes now land near 4.8:1: legible, but still clearly lighter than
+      real input text so a placeholder is never mistaken for an answer.
+    */
+    --placeholder:        120 113 108;
+  }
+
   body {
-    @apply bg-white;
+    @apply bg-pure-white;
   }
 
   .card {

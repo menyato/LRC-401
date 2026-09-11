@@ -90,6 +90,21 @@ export default [
       'react/jsx-uses-vars': 'error',
       'react/jsx-uses-react': 'error',
 
+      /**
+       * THE COMPANION TO `no-undef`, AND THE ONE THAT WAS MISSING.
+       *
+       * ESLint's core `no-undef` does not treat a JSX element name as a
+       * variable reference, so `<ThemeProvider />` with no import passes it
+       * cleanly. That is exactly the bug that shipped: the JSX was added to
+       * main.jsx while the import was not, lint reported zero errors, the build
+       * succeeded, and the app rendered a blank white page with
+       * "ThemeProvider is not defined" in the console.
+       *
+       * A blank page is the worst failure mode there is — nothing on screen
+       * says what went wrong. This rule turns it into a one-line lint error.
+       */
+      'react/jsx-no-undef': 'error',
+
       // Rules of Hooks. Getting these wrong produces bugs that look like
       // "React is behaving randomly", which is the worst kind to debug.
       'react-hooks/rules-of-hooks': 'error',

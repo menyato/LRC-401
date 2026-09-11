@@ -187,7 +187,7 @@ function TwoFactorStep({ mfaToken, onVerified, onCancel, verifyTwoFactor }) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
       <div className="mb-4 flex items-center gap-3">
-        <div className="rounded-full bg-brand-50 p-2">
+        <div className="rounded-full bg-brand-subtle p-2">
           <ShieldCheck className="h-5 w-5 text-brand-600" aria-hidden="true" />
         </div>
         <div>

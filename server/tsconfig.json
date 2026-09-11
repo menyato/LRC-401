@@ -35,26 +35,21 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
 
-    "//strict": [
-      "Deliberately NOT `strict: true` on the first pass.",
-      "",
-      "Turning everything on at once over 28k lines of untyped JavaScript",
-      "produces thousands of errors, which is indistinguishable from no signal",
-      "at all — people turn it off and never come back. These are the checks",
-      "that catch real bugs with almost no false positives on existing code.",
-      "Tighten them one at a time as the noise is cleared."
-    ],
+    // Deliberately NOT `strict: true` on the first pass.
+    //
+    // Turning everything on at once over 28k lines of untyped JavaScript
+    // produces thousands of errors, which is indistinguishable from no signal
+    // at all — people turn it off and never come back. These are the checks
+    // that catch real bugs with almost no false positives on existing code.
+    // Tighten them one at a time as the noise is cleared.
     "strict": false,
     "noImplicitAny": false,
 
-    "//enabled": [
-      "These are the ones that earn their place immediately:",
-      "  noUnusedLocals        — leftovers from a half-finished refactor",
-      "  noFallthroughCases    — a missing `break` in a switch",
-      "  noImplicitReturns     — a branch that forgets to return",
-      "  noUncheckedIndexedAccess is OFF for now: correct, but very noisy on",
-      "  existing array code, and it would drown the findings above."
-    ],
+    // These are the ones that earn their place immediately:
+    //   noFallthroughCases    — a missing `break` in a switch
+    //   allowUnreachableCode  — code after a return
+    // noUncheckedIndexedAccess is OFF for now: correct, but very noisy on
+    // existing array code, and it would drown the findings above.
     "noUnusedLocals": false,
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": false,

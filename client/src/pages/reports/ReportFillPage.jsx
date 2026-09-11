@@ -316,7 +316,7 @@ export default function ReportFillPage() {
                         onClick={() => chooseAssignment(assignment)}
                         className={`w-full rounded-lg border p-3 text-start transition-colors ${
                           isSelected
-                            ? 'border-brand-600 bg-brand-50'
+                            ? 'border-brand-600 bg-brand-subtle'
                             : 'border-surface-border bg-white hover:bg-stone-50'
                         }`}
                         aria-pressed={isSelected}
@@ -469,7 +469,7 @@ export default function ReportFillPage() {
                   onClick={() => setSectionIndex(index)}
                   className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium ${
                     index === sectionIndex
-                      ? 'bg-brand-600 text-white'
+                      ? 'bg-brand-600 text-pure-white'
                       : 'bg-white text-stone-600 hover:bg-stone-100'
                   }`}
                 >

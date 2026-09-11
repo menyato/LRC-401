@@ -191,9 +191,9 @@ export default function AppLayout() {
     .filter((group) => group.items.length > 0);
 
   return (
-    <div className="min-h-screen bg-surface-muted dark:bg-surface-darkMuted">
+    <div className="min-h-screen bg-surface-muted">
       {/* ==================== HEADER ==================== */}
-      <header className="sticky top-0 z-30 border-b border-brand-700 bg-brand-600 text-white no-print">
+      <header className="sticky top-0 z-30 border-b border-brand-700 bg-brand-600 text-pure-white no-print">
         <div className="flex h-14 items-center gap-3 px-3 sm:px-4">
           {/* Drawer toggle — mobile only. */}
           <button
@@ -248,7 +248,7 @@ export default function AppLayout() {
         {/* ==================== SIDEBAR (desktop) ==================== */}
         <aside
           className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-64 shrink-0 overflow-y-auto
-                     border-e border-surface-border bg-white dark:border-surface-darkBorder dark:bg-surface-dark lg:block no-print"
+                     border-e border-surface-border bg-white lg:block no-print"
         >
           <NavigationTree groups={visibleGroups} />
         </aside>
@@ -269,15 +269,15 @@ export default function AppLayout() {
             />
 
             <nav
-              className="absolute inset-y-0 start-0 w-72 max-w-[85vw] overflow-y-auto bg-white dark:bg-surface-dark
+              className="absolute inset-y-0 start-0 w-72 max-w-[85vw] overflow-y-auto bg-white 
                          shadow-popover animate-slide-up"
             >
-              <div className="flex items-center justify-between border-b border-surface-border px-4 py-3 dark:border-surface-darkBorder">
-                <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">{t('common.appName')}</span>
+              <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
+                <span className="text-sm font-semibold text-stone-900">{t('common.appName')}</span>
                 <button
                   type="button"
                   onClick={() => setIsDrawerOpen(false)}
-                  className="rounded p-1.5 text-stone-400 hover:bg-stone-100 dark:hover:bg-surface-darkElevated"
+                  className="rounded p-1.5 text-stone-400 hover:bg-stone-100"
                   aria-label={t('common.close')}
                 >
                   <X className="h-5 w-5" />
@@ -286,7 +286,7 @@ export default function AppLayout() {
 
               <NavigationTree groups={visibleGroups} />
 
-              <div className="border-t border-surface-border p-4 dark:border-surface-darkBorder sm:hidden">
+              <div className="border-t border-surface-border p-4 sm:hidden">
                 <LanguageToggle compact />
               </div>
             </nav>
@@ -312,7 +312,7 @@ export default function AppLayout() {
  *
  * React Router's own `isActive` marks a link active whenever the URL merely
  * starts with its path, so several entries lit up at once — opening
- * `/reports/new` highlighted both "Fill a report" AND "Equipment reports"
+ * `/reports/new` highlighted both"Fill a report" AND"Equipment reports"
  * (`/reports`), and the stock movements page highlighted its parent store too.
  *
  * Sprinkling `end` on the parents would fix those two cases and silently break
@@ -331,8 +331,8 @@ function resolveActivePath(items, pathname) {
 
   for (const item of items) {
     const isExact = pathname === item.to;
-    // The trailing slash matters: without it "/reports" would match
-    // "/reportsomething".
+    // The trailing slash matters: without it"/reports" would match
+    //"/reportsomething".
     const isDescendant = item.to !== '/' && pathname.startsWith(`${item.to}/`);
 
     if (!isExact && !isDescendant) continue;
@@ -348,7 +348,7 @@ function NavigationTree({ groups }) {
   const location = useLocation();
 
   // Flattened once so the longest-match search sees entries from every group —
-  // "/reports" and "/reports/new" live in the same group today, but nothing
+  //"/reports" and"/reports/new" live in the same group today, but nothing
   // guarantees that stays true.
   const allItems = groups.flatMap((group) => group.items);
   const activePath = resolveActivePath(allItems, location.pathname);
@@ -358,7 +358,7 @@ function NavigationTree({ groups }) {
       {groups.map((group, index) => (
         <div key={group.label ?? index} className={index > 0 ? 'mt-5' : ''}>
           {group.label && (
-            <h2 className="mb-1.5 px-3 text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+            <h2 className="mb-1.5 px-3 text-xs font-semibold uppercase tracking-wide text-stone-400">
               {group.label}
             </h2>
           )}
@@ -375,8 +375,8 @@ function NavigationTree({ groups }) {
                     // exactly one entry is ever highlighted.
                     className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                       isActive
-                        ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-950/60 dark:text-brand-300'
-                        : 'text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-surface-darkElevated'
+                        ? 'bg-brand-subtle font-medium text-brand-strong'
+                        : 'text-stone-700 hover:bg-stone-100 '
                     }`}
                     aria-current={isActive ? 'page' : undefined}
                   >

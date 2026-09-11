@@ -111,7 +111,7 @@ export default function ExpiringPage() {
                 onClick={() => setWithinDays(days)}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium ${
                   withinDays === days
-                    ? 'bg-brand-600 text-white'
+                    ? 'bg-brand-600 text-pure-white'
                     : 'text-stone-600 hover:bg-stone-100'
                 }`}
                 aria-pressed={withinDays === days}

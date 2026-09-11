@@ -182,7 +182,7 @@ function FieldControl({ field, value, onChange, readOnly, label }) {
                 : isSelected && option.severity === 'WARN'
                   ? 'border-status-warn bg-status-warnBg text-status-warn'
                   : isSelected
-                    ? 'border-brand-600 bg-brand-50 text-brand-700'
+                    ? 'border-brand-600 bg-brand-subtle text-brand-strong'
                     : 'border-surface-border bg-white text-stone-700 hover:bg-stone-50';
 
             return (
@@ -282,7 +282,7 @@ function FieldControl({ field, value, onChange, readOnly, label }) {
                 }
                 className={`min-h-[2.75rem] rounded-lg border px-3 text-sm ${
                   isSelected
-                    ? 'border-brand-600 bg-brand-50 text-brand-700'
+                    ? 'border-brand-600 bg-brand-subtle text-brand-strong'
                     : 'border-surface-border bg-white text-stone-700 hover:bg-stone-50'
                 } disabled:opacity-60`}
                 aria-pressed={isSelected}
@@ -341,7 +341,7 @@ function ChoiceButtons({ choices, value, onChange, readOnly, ariaLabel }) {
             className={`min-h-[2.75rem] min-w-[2.75rem] rounded-lg border px-3 text-sm font-medium
                         transition-colors disabled:opacity-60 ${
                           isSelected
-                            ? 'border-brand-600 bg-brand-600 text-white'
+                            ? 'border-brand-600 bg-brand-600 text-pure-white'
                             : 'border-surface-border bg-white text-stone-700 hover:bg-stone-50'
                         }`}
           >

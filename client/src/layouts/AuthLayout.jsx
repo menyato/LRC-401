@@ -10,6 +10,7 @@
 
 import { Outlet } from 'react-router-dom';
 import { LanguageToggle } from '@/components/LanguageToggle';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { LrcLogo } from '@/components/LrcLogo';
 import { useTranslation } from 'react-i18next';
 
@@ -19,10 +20,17 @@ export default function AuthLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-surface-muted">
       {/*
-        The language toggle must be reachable BEFORE signing in: a volunteer who
-        reads only Arabic has to be able to switch before reading the form.
+        Both toggles must be reachable BEFORE signing in.
+
+        Language: a volunteer who reads only Arabic has to be able to switch
+        before reading the form.
+
+        Theme: for the same reason. Someone starting a night shift meets the
+        login screen first, and being unable to dim it until after they have
+        signed in defeats the point.
       */}
-      <div className="flex justify-end p-4">
+      <div className="flex items-center justify-end gap-2 p-4">
+        <ThemeToggle />
         <LanguageToggle />
       </div>
 

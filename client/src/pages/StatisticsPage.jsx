@@ -93,7 +93,7 @@ export default function StatisticsPage() {
               type="button"
               onClick={() => setDays(range.days)}
               className={`rounded-md px-3 py-1.5 text-xs font-medium ${
-                days === range.days ? 'bg-brand-600 text-white' : 'text-stone-600 hover:bg-stone-100'
+                days === range.days ? 'bg-brand-600 text-pure-white' : 'text-stone-600 hover:bg-stone-100'
               }`}
               aria-pressed={days === range.days}
             >

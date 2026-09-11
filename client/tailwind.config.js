@@ -49,62 +49,130 @@ export default {
           800: '#a11624',
           900: '#881824',
           950: '#4b070f',
+
+          /**
+           * Theme-aware members of the brand family, for the "selected" chip:
+           * an active nav item, a chosen radio card, the logo badge.
+           *
+           * `subtle` is the tinted GROUND and `strong` the text on it. They
+           * are separate from the numbered scale because that scale must stay
+           * fixed — brand-600 is the official LRC red in both themes — while a
+           * tint used as a background has to flip to deep maroon in the dark,
+           * and its text has to go light.
+           */
+          subtle: 'rgb(var(--brand-subtle) / <alpha-value>)',
+          strong: 'rgb(var(--brand-strong) / <alpha-value>)',
         },
 
         /**
          * Status palette for the equipment reports.
-         * Deliberately NOT the brand red: on a page where the header is red,
-         * a red badge would not read as an alert. Critical uses a deeper,
-         * more saturated red that stands apart from the branding.
+         *
+         * Deliberately NOT the brand red: on a page where the header is red, a
+         * red badge would not read as an alert. Critical uses a deeper, more
+         * saturated red that stands apart from the branding.
+         *
+         * These resolve through CSS variables, so the dark theme substitutes
+         * lighter, less saturated values automatically — the opposite
+         * adjustment from what feels intuitive, but the one that stays legible
+         * on a dark ground. A `text-status-critical` written once is correct in
+         * both themes; there is no `statusDark` to remember to use.
          */
         status: {
-          ok: '#15803d',
-          okBg: '#f0fdf4',
-          warn: '#b45309',
-          warnBg: '#fffbeb',
-          critical: '#b91c1c',
-          criticalBg: '#fef2f2',
-          missing: '#52525b',
-          missingBg: '#fafafa',
-        },
-
-        /** Neutral surfaces. Warm greys sit better against red than blue-greys. */
-        surface: {
-          DEFAULT: '#ffffff',
-          muted: '#fafaf9',
-          border: '#e7e5e4',
-
-          /**
-           * Dark counterparts.
-           *
-           * Warm near-blacks rather than pure #000: an OLED phone at night is
-           * genuinely uncomfortable against pure black, and the red brand
-           * colour vibrates badly on it. These are the same warm stone family
-           * as the light surfaces, simply inverted.
-           */
-          dark: '#1c1917',
-          darkMuted: '#0c0a09',
-          darkElevated: '#292524',
-          darkBorder: '#44403c',
+          ok: 'rgb(var(--status-ok) / <alpha-value>)',
+          okBg: 'rgb(var(--status-ok-bg) / <alpha-value>)',
+          warn: 'rgb(var(--status-warn) / <alpha-value>)',
+          warnBg: 'rgb(var(--status-warn-bg) / <alpha-value>)',
+          critical: 'rgb(var(--status-critical) / <alpha-value>)',
+          criticalBg: 'rgb(var(--status-critical-bg) / <alpha-value>)',
+          missing: 'rgb(var(--status-missing) / <alpha-value>)',
+          missingBg: 'rgb(var(--status-missing-bg) / <alpha-value>)',
         },
 
         /**
-         * Status colours that stay legible on a dark ground.
+         * Neutral surfaces.
          *
-         * The light-mode versions are deep and saturated so they read against
-         * white; on a dark surface those same values disappear. These are
-         * lighter and less saturated, which is the opposite adjustment from
-         * what feels intuitive but is what actually works.
+         *   surface          a card, a modal, a table row
+         *   surface-muted    the page BEHIND the cards
+         *   surface-elevated a popover sitting above a card
+         *   surface-border   the line between them
+         *
+         * Three distinct steps, not two. The original light palette had the
+         * page at #fafaf9 and cards at #ffffff — a 1.3% difference in
+         * lightness, invisible on a phone in daylight, which is exactly where
+         * this app is used. Cards, tables and modals blurred into one flat
+         * sheet. The page ground is now a full step darker.
          */
-        statusDark: {
-          ok: '#4ade80',
-          okBg: '#052e16',
-          warn: '#fbbf24',
-          warnBg: '#292524',
-          critical: '#f87171',
-          criticalBg: '#450a0a',
-          missing: '#a8a29e',
-          missingBg: '#1c1917',
+        surface: {
+          DEFAULT: 'rgb(var(--surface) / <alpha-value>)',
+          muted: 'rgb(var(--surface-muted) / <alpha-value>)',
+          elevated: 'rgb(var(--surface-elevated) / <alpha-value>)',
+          border: 'rgb(var(--surface-border) / <alpha-value>)',
+        },
+
+        /**
+         * THE NEUTRAL SCALE IS OVERRIDDEN ON PURPOSE.
+         *
+         * Tailwind ships `stone` as fixed hex values. Here it points at CSS
+         * variables that INVERT in dark mode: stone-50 is near-white in light
+         * and near-black in dark, stone-900 the reverse.
+         *
+         * That inversion is what makes the whole app theme-aware. A component
+         * written as `bg-white text-stone-900 border-surface-border` — the
+         * natural way to write it — becomes near-black with near-white text in
+         * dark mode without being edited. Thirty components had no dark
+         * support at all, which is why dark mode appeared to affect only the
+         * login card and not the page behind it; they are all fixed by this,
+         * and so is the next component somebody writes.
+         *
+         * Trade-off, stated plainly: `stone` no longer means the Tailwind
+         * colour of that name. Anywhere a genuinely fixed grey is needed
+         * regardless of theme — print styles, a colour swatch — use `zinc` or
+         * `neutral`, which are untouched.
+         */
+        stone: {
+          50: 'rgb(var(--stone-50) / <alpha-value>)',
+          100: 'rgb(var(--stone-100) / <alpha-value>)',
+          200: 'rgb(var(--stone-200) / <alpha-value>)',
+          300: 'rgb(var(--stone-300) / <alpha-value>)',
+          400: 'rgb(var(--stone-400) / <alpha-value>)',
+          500: 'rgb(var(--stone-500) / <alpha-value>)',
+          600: 'rgb(var(--stone-600) / <alpha-value>)',
+          700: 'rgb(var(--stone-700) / <alpha-value>)',
+          800: 'rgb(var(--stone-800) / <alpha-value>)',
+          900: 'rgb(var(--stone-900) / <alpha-value>)',
+          950: 'rgb(var(--stone-950) / <alpha-value>)',
+        },
+
+        /**
+         * `white` follows the theme too.
+         *
+         * `bg-white` is the single most common class in the codebase and the
+         * most common reason a panel stayed blazing white in dark mode. It now
+         * means "the card surface", which is what every use of it actually
+         * meant. For genuinely, permanently white — the text on the red header
+         * bar, which sits on brand-600 in both themes — use `text-pure-white`.
+         */
+        white: 'rgb(var(--surface) / <alpha-value>)',
+
+        /**
+         * Solid destructive-button fill — see `.btn-danger` in index.css.
+         * Separate from `status-critical` because that token LIGHTENS in dark
+         * mode (so it stays readable as text on a dark ground), which would
+         * leave white-on-light-red at about 2.5:1 as a button fill.
+         */
+        danger: {
+          solid: 'rgb(var(--danger-solid) / <alpha-value>)',
+        },
+
+        /**
+         * Input placeholder — see the note in index.css. Named rather than
+         * reusing `stone-400`, which is legible in dark mode but only 2.52:1
+         * on white.
+         */
+        placeholder: 'rgb(var(--placeholder) / <alpha-value>)',
+        pure: {
+          white: '#ffffff',
+          black: '#000000',
         },
       },
 
@@ -132,7 +200,13 @@ export default {
       },
 
       boxShadow: {
-        card: '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)',
+        /*
+          Strengthened from 0.06 alpha. With the page ground darkened to
+          separate cards properly, the old shadow was too faint to add any
+          lift on top of it. Dark mode drops the shadow entirely and relies on
+          the border — shadows are invisible against a dark ground.
+        */
+        card: '0 1px 3px 0 rgb(0 0 0 / 0.10), 0 1px 2px -1px rgb(0 0 0 / 0.08)',
         popover: '0 10px 30px -10px rgb(0 0 0 / 0.2)',
       },
 
