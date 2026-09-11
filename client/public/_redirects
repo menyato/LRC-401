@@ -1,0 +1,13 @@
+# Cloudflare Pages / Netlify redirects — see docs/04-LAUNCH-ROADMAP.md
+#
+# 1. Proxy the API through the SAME origin as the web app.
+#    This is what keeps the httpOnly refresh cookie first-party in production,
+#    exactly as the Vite proxy does in development. Without it the browser
+#    drops the cookie and users are logged out on every page refresh — the
+#    single most common thing that breaks between local and production.
+#    Replace the host below with your deployed API.
+/api/*  https://your-api.onrender.com/api/:splat  200
+
+# 2. Single-page-app fallback: serve index.html for any other path so that
+#    refreshing on /reports/board does not 404 on the static host.
+/*      /index.html                               200

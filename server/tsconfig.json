@@ -1,0 +1,79 @@
+{
+  "//": [
+    "TYPE-CHECKING WITHOUT A REWRITE.",
+    "",
+    "`checkJs` runs the TypeScript compiler over the existing .js files. No file",
+    "is renamed, no syntax changes, nothing ships differently — `noEmit` means it",
+    "only ever reports, never writes. Types come from three places already in the",
+    "project: the JSDoc comments written throughout, the .d.ts files that ship",
+    "with every dependency, and the types Prisma generates from schema.prisma.",
+    "",
+    "That last one is the real prize. `prisma.formSubmission.findMany()` is fully",
+    "typed from the schema, so a typo in a column name or a wrong `include` is",
+    "caught here rather than at 3am in production.",
+    "",
+    "WHY NOT A FULL MIGRATION: 123 files and ~28k lines, days of work, every file",
+    "touched, right before deployment — with 116 passing tests to put at risk.",
+    "This catches the same classes of bug today at a fraction of the cost, and",
+    "leaves a real migration possible later, file by file.",
+    "",
+    "    npm run typecheck"
+  ],
+
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+
+    "//strict": [
+      "Deliberately NOT `strict: true` on the first pass.",
+      "",
+      "Turning everything on at once over 28k lines of untyped JavaScript",
+      "produces thousands of errors, which is indistinguishable from no signal",
+      "at all — people turn it off and never come back. These are the checks",
+      "that catch real bugs with almost no false positives on existing code.",
+      "Tighten them one at a time as the noise is cleared."
+    ],
+    "strict": false,
+    "noImplicitAny": false,
+
+    "//enabled": [
+      "These are the ones that earn their place immediately:",
+      "  noUnusedLocals        — leftovers from a half-finished refactor",
+      "  noFallthroughCases    — a missing `break` in a switch",
+      "  noImplicitReturns     — a branch that forgets to return",
+      "  noUncheckedIndexedAccess is OFF for now: correct, but very noisy on",
+      "  existing array code, and it would drown the findings above."
+    ],
+    "noUnusedLocals": false,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": false,
+    "allowUnreachableCode": false
+  },
+
+  "//include": [
+    "APPLICATION CODE ONLY.",
+    "",
+    "prisma/seed-data holds literal data — TypeScript infers its object shapes",
+    "from the first entry and then objects to every later one that has an extra",
+    "key, producing ~120 findings that are all noise.",
+    "",
+    "scripts/ drives the API loosely on purpose (it pokes at responses to prove",
+    "they are wrong), which is exactly the shape a type-checker complains about.",
+    "",
+    "Excluding both keeps the signal in src/, where a finding means something.",
+    "They are still covered by ESLint, which is the check that matters for them."
+  ],
+  "include": ["src/**/*.js"],
+  "exclude": ["node_modules", "prisma/migrations", "prisma/seed-data", "scripts"]
+}

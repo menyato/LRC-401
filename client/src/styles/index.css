@@ -1,0 +1,281 @@
+/**
+ * =============================================================================
+ *  Global styles
+ * =============================================================================
+ *  Tailwind does the layout work. This file holds only the things utilities
+ *  cannot express: base element defaults, RTL adjustments, and a small set of
+ *  component classes for patterns that appear on almost every screen.
+ *
+ *  The component classes exist to stop a 12-utility button string from being
+ *  copy-pasted into forty files — changing the button style would otherwise
+ *  mean forty edits and one of them getting missed.
+ * =============================================================================
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   BASE
+   ========================================================================== */
+
+@layer base {
+  html {
+    /* Smooth in-page jumps, e.g. "scroll to the first unanswered question". */
+    scroll-behavior: smooth;
+    /* Keeps a focused input clear of the sticky header when the page scrolls. */
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    @apply bg-surface-muted text-stone-900 font-sans antialiased
+           dark:bg-surface-darkMuted dark:text-stone-100;
+    /* Prevents iOS Safari from silently enlarging text in landscape. */
+    -webkit-text-size-adjust: 100%;
+
+    /*
+      Fluidity: the theme change itself is animated, so switching does not snap.
+      Deliberately limited to colours — animating `all` would also animate
+      layout properties and make every page transition feel sluggish.
+    */
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+
+  /*
+    A visible focus ring on EVERY interactive element. Tailwind's preflight
+    removes the browser default, and without a replacement the app becomes
+    unusable by keyboard — which also breaks screen readers.
+  */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-600 ring-offset-2 ring-offset-white;
+  }
+
+  /*
+    Number inputs: hide the spinner arrows. On the equipment report the counts
+    are chosen from buttons, and a stray scroll over a focused number input
+    silently changes the value — a real source of wrong stock counts.
+  */
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  /*
+    Respect the OS "reduce motion" setting.
+
+    Some people get motion sickness or migraines from animated interfaces, and
+    this setting is how they say so. It turns the movement off while leaving the
+    interface fully functional — motion is decoration here, never the only
+    signal that something changed.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ==========================================================================
+   COMPONENTS
+   ========================================================================== */
+
+@layer components {
+  /* --- Buttons ---------------------------------------------------------- */
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium
+           transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    /*
+      44px minimum height. This is the Apple/WCAG touch-target guideline, and it
+      is not cosmetic here: these buttons get tapped with gloved hands.
+    */
+    min-height: 2.75rem;
+  }
+
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800;
+  }
+
+  .btn-secondary {
+    @apply btn border border-surface-border bg-white text-stone-700 hover:bg-stone-50
+           dark:border-surface-darkBorder dark:bg-surface-darkElevated dark:text-stone-200
+           dark:hover:bg-stone-700;
+  }
+
+  .btn-ghost {
+    @apply btn text-stone-600 hover:bg-stone-100
+           dark:text-stone-300 dark:hover:bg-surface-darkElevated;
+  }
+
+  .btn-danger {
+    @apply btn bg-status-critical text-white hover:brightness-110;
+  }
+
+  .btn-sm {
+    @apply px-3 text-xs;
+    min-height: 2.25rem;
+  }
+
+  /* --- Form controls ---------------------------------------------------- */
+
+  .input {
+    @apply w-full rounded-lg border border-surface-border bg-white px-3 py-2.5 text-sm
+           placeholder:text-stone-400 focus:border-brand-600 focus:outline-none
+           focus:ring-1 focus:ring-brand-600 disabled:bg-stone-50 disabled:text-stone-500
+           dark:border-surface-darkBorder dark:bg-surface-darkElevated dark:text-stone-100
+           dark:placeholder:text-stone-500 dark:disabled:bg-surface-dark
+           dark:disabled:text-stone-500;
+    /*
+      Fluidity: a field that changes instantly on focus feels abrupt. 150ms is
+      long enough to read as movement and short enough never to feel laggy.
+    */
+    @apply transition-[border-color,box-shadow] duration-150;
+  }
+
+  /* Applied when a field fails validation, alongside a text message. */
+  .input-error {
+    @apply border-status-critical focus:border-status-critical focus:ring-status-critical;
+  }
+
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300;
+  }
+
+  .form-error {
+    @apply mt-1 text-xs text-status-critical dark:text-statusDark-critical;
+  }
+
+  /* --- Surfaces --------------------------------------------------------- */
+
+  .card {
+    @apply rounded-card border border-surface-border bg-white shadow-card
+           dark:border-surface-darkBorder dark:bg-surface-dark dark:shadow-none;
+  }
+
+  .card-header {
+    @apply flex items-center justify-between gap-3 border-b border-surface-border px-4 py-3
+           dark:border-surface-darkBorder;
+  }
+
+  .card-body {
+    @apply p-4;
+  }
+
+  /* --- Status badges ---------------------------------------------------- */
+  /*
+    Always paired with a text label in the markup — never colour alone.
+    See the accessibility note in tailwind.config.js.
+  */
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .badge-ok {
+    @apply badge bg-status-okBg text-status-ok;
+  }
+
+  .badge-warn {
+    @apply badge bg-status-warnBg text-status-warn;
+  }
+
+  .badge-critical {
+    @apply badge bg-status-criticalBg text-status-critical;
+  }
+
+  .badge-missing {
+    @apply badge bg-status-missingBg text-status-missing;
+  }
+
+  /* --- Tables ----------------------------------------------------------- */
+  /*
+    Wrap every table in `.table-wrap`. Below ~640px a data table cannot shrink
+    to fit; scrolling the TABLE horizontally keeps the page itself from
+    scrolling sideways, which is what makes a mobile layout feel broken.
+  */
+
+  .table-wrap {
+    @apply -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0;
+  }
+
+  .table {
+    @apply w-full min-w-[36rem] border-collapse text-sm;
+  }
+
+  .table th {
+    @apply dark:border-surface-darkBorder dark:bg-surface-darkMuted dark:text-stone-300;
+    @apply whitespace-nowrap border-b border-surface-border px-3 py-2.5 text-start
+           text-xs font-semibold uppercase tracking-wide text-stone-500;
+  }
+
+  .table td {
+    @apply dark:border-surface-darkBorder dark:text-stone-200;
+    @apply border-b border-surface-border px-3 py-2.5 align-middle;
+  }
+
+  .table tbody tr:hover {
+    @apply dark:bg-surface-darkElevated;
+    @apply bg-stone-50;
+  }
+}
+
+/* ==========================================================================
+   RTL (Arabic)
+   ========================================================================== */
+/*
+  Most mirroring is automatic because the layout uses LOGICAL properties —
+  Tailwind's `ms-*`/`me-*`/`ps-*`/`pe-*` and `text-start`/`text-end` flip with
+  `dir="rtl"` on their own. Only genuinely directional things need help.
+*/
+
+[dir='rtl'] .flip-in-rtl {
+  transform: scaleX(-1);
+}
+
+/*
+  Latin digits in Arabic mode. Equipment counts, vehicle numbers and dates are
+  written with Western digits at the station, and switching them to Eastern
+  Arabic numerals would make the two languages disagree about what "472" is.
+*/
+[dir='rtl'] {
+  font-feature-settings: normal;
+}
+
+/* ==========================================================================
+   PRINT
+   ========================================================================== */
+/*
+  A submitted report is sometimes printed and filed. Drop the chrome and let
+  the content use the whole page.
+*/
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    @apply bg-white;
+  }
+
+  .card {
+    @apply border border-stone-300 shadow-none;
+    break-inside: avoid;
+  }
+}

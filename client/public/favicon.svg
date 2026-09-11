@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Red cross on white. Matches src/components/LrcLogo.jsx. -->
+  <rect width="48" height="48" rx="10" fill="#ffffff"/>
+  <rect x="19" y="9" width="10" height="30" rx="1" fill="#ED1B2E"/>
+  <rect x="9" y="19" width="30" height="10" rx="1" fill="#ED1B2E"/>
+</svg>

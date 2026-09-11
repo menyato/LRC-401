@@ -1,0 +1,66 @@
+{
+  "name": "lrc-401-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LRC-401 REST API",
+  "license": "UNLICENSED",
+  "//": "ES modules ('type': 'module') — modern, and the same import syntax as the React client, so there is one style to learn in this repo.",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:reset": "prisma migrate reset --force",
+    "db:seed": "node prisma/seed.js",
+    "db:studio": "prisma studio",
+    "lint": "eslint src --ext .js",
+    "test:smoke": "node scripts/smoke-test.js",
+    "db:status": "node scripts/db-status.js",
+    "unlock": "node scripts/unlock-user.js",
+    "test:scenarios": "node scripts/scenario-test.js",
+    "test": "node scripts/smoke-test.js && node scripts/scenario-test.js",
+    "set-password": "node scripts/set-password.js",
+    "check:responder": "node scripts/check-responder-view.js",
+    "purge:test-data": "node scripts/purge-test-data.js",
+    "check:restock": "node scripts/check-restock-flow.js",
+    "check:vehicle-rules": "node scripts/check-vehicle-rules.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "bcryptjs": "^2.4.3",
+    "compression": "^1.7.5",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "hpp": "^0.2.3",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^6.9.16",
+    "otplib": "^12.0.1",
+    "pino": "^9.6.0",
+    "pino-http": "^10.4.0",
+    "qrcode": "^1.5.4",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "eslint": "^9.18.0",
+    "globals": "^17.12.0",
+    "pino-pretty": "^13.0.0",
+    "prisma": "^6.2.1",
+    "typescript": "^7.0.2"
+  }
+}

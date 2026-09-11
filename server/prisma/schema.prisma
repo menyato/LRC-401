@@ -1,0 +1,1013 @@
+// =============================================================================
+//  LRC-401 — Database schema (PostgreSQL via Prisma)
+// =============================================================================
+//  This file is the SINGLE SOURCE OF TRUTH for the data model. Every table,
+//  column, relation and index lives here. To change the database:
+//
+//      npm run db:migrate -- --name what_you_changed
+//
+//  ...which generates a reviewable SQL migration under prisma/migrations/.
+//  Never edit the database by hand — the migration history is what lets us
+//  rebuild production from scratch and what tells a future maintainer why a
+//  column exists.
+//
+//  Naming conventions used throughout:
+//    * Models are singular PascalCase   -> User, StockMovement
+//    * Bilingual text is `xxxEn` / `xxxAr` (the station operates in both)
+//    * `Json` columns are used ONLY where the shape is genuinely dynamic
+//      (super-admin-defined fields). Everything else is a real column so the
+//      database can validate and index it.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+//  ENUMS
+// =============================================================================
+
+/// Lifecycle of a user account.
+/// INVITED   = created by an admin, invitation email sent, password not set yet
+/// ACTIVE    = can log in
+/// SUSPENDED = blocked without deleting history (we never hard-delete users,
+///             because audit logs and submissions must keep pointing at them)
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+/// A user's standing inside one team. TEAM_ADMIN is what grants the
+/// "I can see my team's reports" data scope.
+enum TeamRole {
+  MEMBER
+  TEAM_ADMIN
+}
+
+enum VehicleKind {
+  AMBULANCE
+  ER_ROOM
+  OTHER
+}
+
+/// Direction of a stock ledger entry.
+/// IN     = stock received into the store
+/// OUT    = stock issued to a person / team / vehicle
+/// ADJUST = correction after a physical count. Signed: quantity may be negative.
+enum MovementDirection {
+  IN
+  OUT
+  /// Stock moved BETWEEN two of our own locations. The station total is
+  /// unchanged but each location's balance moves. This is what the chain
+  /// "main store -> daily cabinet -> vehicle" is made of.
+  TRANSFER
+  ADJUST
+}
+
+/// Where stock physically sits.
+/// STORE   = the main stockroom
+/// CABINET = the daily-use cabinet the crews draw from
+/// VEHICLE = an ambulance or the ER room (mirrors a Vehicle row)
+enum LocationKind {
+  STORE
+  CABINET
+  VEHICLE
+  OTHER
+}
+
+/// Lifecycle of a restock request — these are the columns of the Kanban board.
+///
+/// The split follows who actually does the work at the station:
+///
+///   OPEN      = raised from a report's shortages; the equipment officer has
+///               not started on it
+///   PREPARING = the equipment officer is gathering the items from the cabinet
+///   READY     = gathered and set aside, waiting for the crew to come and take
+///               them. The equipment officer's job ends here — they do not walk
+///               out to the vehicle.
+///   CONFIRMED = the CREW has collected the items and confirmed they are in the
+///               vehicle. STOCK MOVES AT THIS POINT, not before, because this
+///               is the moment the items are genuinely on the ambulance.
+///   CANCELLED = no longer needed (item turned up, vehicle off the road)
+enum RestockStatus {
+  OPEN
+  PREPARING
+  READY
+  CONFIRMED
+  CANCELLED
+}
+
+/// How urgently a shortage must be put right.
+///
+/// Distinct from SEVERITY: severity is computed from the day's numbers,
+/// priority is a standing judgement about how much the item matters. A vehicle
+/// short one tourniquet and short one vomit bag are both "critical" by the
+/// numbers; they are not the same problem.
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+/// Which kind of asset a form template describes.
+enum FormScope {
+  AMBULANCE
+  ER_ROOM
+  GENERIC
+}
+
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+}
+
+/// The six input shapes the equipment report needs. See docs/02-DOMAIN-MODEL.md.
+/// GRID is the matrix question ("Airways: Blue/Red/Yellow x 0/1/2") that makes
+/// up a large part of the paper form.
+enum FieldType {
+  TEXT
+  NUMBER
+  NUMBER_CHOICE
+  SINGLE_SELECT
+  MULTI_SELECT
+  BOOLEAN
+  DATE
+  GRID
+  SECTION_NOTE
+}
+
+/// Types available for super-admin-defined extra item attributes.
+enum AttributeType {
+  TEXT
+  NUMBER
+  SELECT
+  BOOLEAN
+  DATE
+}
+
+// =============================================================================
+//  1. IDENTITY & ACCESS
+// =============================================================================
+
+/// A named bundle of permissions, editable by the super admin from the
+/// dashboard. Permission STRINGS are a fixed catalogue in
+/// src/config/permissions.js — see docs/02-DOMAIN-MODEL.md for why.
+model Role {
+  id          String   @id @default(cuid())
+  /// Stable machine key, e.g. "clothing_officer". Used in seeds and code.
+  key         String   @unique
+  nameEn      String
+  nameAr      String
+  description String?
+  /// Permission strings from the catalogue, e.g. ["inventory.item:read", ...]
+  permissions String[] @default([])
+  /// System roles cannot be deleted (but their permissions may be edited),
+  /// so the station can never lock itself out of a core workflow.
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  invitations Invitation[]
+
+  @@index([key])
+}
+
+model User {
+  id                 String     @id @default(cuid())
+  /// Always stored lower-cased — normalised in src/utils/normalize.js so that
+  /// "Ali@X.com" and "ali@x.com" can never become two accounts.
+  email              String     @unique
+  /// Null until the user accepts their invitation and chooses a password.
+  passwordHash       String?
+  fullName           String
+  phone              String?
+  status             UserStatus @default(INVITED)
+
+  /// Bypasses every permission check. Guarded so the last one cannot be
+  /// removed or demoted (see users.service.js).
+  isSuperAdmin       Boolean    @default(false)
+  /// Forces a password change on next login — set when an admin resets it.
+  mustChangePassword Boolean    @default(false)
+  /// UI language: "en" or "ar" (drives RTL on the frontend).
+  locale             String     @default("en")
+
+  // ---- Access -------------------------------------------------------------
+  roleId             String?
+  role               Role?      @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  /// Per-person additions on top of the role.
+  extraPermissions   String[]   @default([])
+  /// Per-person removals. Deny always beats grant.
+  deniedPermissions  String[]   @default([])
+
+  // ---- Two-factor authentication (TOTP) -----------------------------------
+  twoFactorEnabled     Boolean   @default(false)
+  /// AES-256-GCM encrypted at rest with TOTP_ENC_KEY — never stored in clear,
+  /// because a database leak would otherwise defeat 2FA entirely.
+  twoFactorSecret      String?
+  twoFactorConfirmedAt DateTime?
+  /// bcrypt hashes of single-use recovery codes.
+  backupCodes          String[]  @default([])
+
+  // ---- Brute-force protection --------------------------------------------
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+
+  /// Cut-off for ACCESS tokens. Any access token issued before this instant is
+  /// rejected, even though it has not expired.
+  ///
+  /// Why this column exists: an access token is a stateless JWT, so revoking a
+  /// refresh token does not stop it — it stays valid until it expires. That
+  /// meant a stolen token kept working for up to 15 minutes AFTER the victim
+  /// changed their password, which defeats the point of changing it.
+  ///
+  /// Set by revokeAllUserTokens(), so every "stop trusting this account's
+  /// sessions" event — password change, password reset, admin reset, 2FA
+  /// change, suspension, permission change — closes the window immediately.
+  sessionsRevokedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ---- Relations ----------------------------------------------------------
+  memberships         TeamMembership[]
+  refreshTokens       RefreshToken[]
+  passwordResets      PasswordResetToken[]
+  invitationsSent     Invitation[]         @relation("InvitationInviter")
+  auditLogs           AuditLog[]
+  stockMovements      StockMovement[]      @relation("MovementRecordedBy")
+  stockIssuedTo       StockMovement[]      @relation("MovementIssuedTo")
+  submissions         FormSubmission[]     @relation("SubmissionAuthor")
+  reviewedSubmissions FormSubmission[]     @relation("SubmissionReviewer")
+  assignmentsFirst    Assignment[]         @relation("AssignmentFirstPerson")
+  assignmentsSecond   Assignment[]         @relation("AssignmentSecondPerson")
+  vehicleRules        VehicleRuleOverride[] @relation("VehicleRuleAuthor")
+  restocksRequested   RestockRequest[]     @relation("RestockRequestedBy")
+  restocksAssigned    RestockRequest[]     @relation("RestockAssignedTo")
+  restocksConfirmed   RestockRequest[]     @relation("RestockConfirmedBy")
+  templatesCreated    FormTemplate[]       @relation("TemplateAuthor")
+
+  @@index([status])
+  @@index([roleId])
+  @@index([createdAt])
+}
+
+/// One-time emailed invitation. We store only a HASH of the token, so a leaked
+/// database still cannot be used to accept invitations.
+model Invitation {
+  id          String    @id @default(cuid())
+  email       String
+  fullName    String
+  tokenHash   String    @unique
+  roleId      String?
+  /// The role the invitee will receive on acceptance.
+  /// SetNull rather than Cascade: deleting a role must not silently destroy
+  /// pending invitations — they simply arrive with no role attached, which the
+  /// admin can see and correct.
+  role        Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  /// Permissions/teams to apply on acceptance, chosen by the inviting admin.
+  extraPermissions String[] @default([])
+  teamIds     String[]  @default([])
+  isSuperAdmin Boolean  @default(false)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  invitedById String
+  invitedBy   User      @relation("InvitationInviter", fields: [invitedById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+}
+
+/// One row per logged-in device. Rotated on every refresh; a reused token
+/// revokes the whole family (theft detection). Enables "log out everywhere".
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Groups the rotation chain so we can revoke a stolen lineage at once.
+  familyId  String
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// Append-only trail of every state-changing action. Never updated or deleted.
+model AuditLog {
+  id         String   @id @default(cuid())
+  /// Null for anonymous actions such as a failed login attempt.
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  /// Dotted verb, e.g. "user.invited", "stock.movement.created".
+  action     String
+  entityType String?
+  entityId   String?
+  /// Snapshots for diffing. Sensitive keys are stripped before writing.
+  before     Json?
+  after      Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// =============================================================================
+//  2. ORG STRUCTURE
+// =============================================================================
+
+/// A day squad, e.g. "Monday Team". `dayOfWeek` follows JS convention
+/// (0 = Sunday … 6 = Saturday) and is nullable for non-day-based groups.
+model Team {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  nameEn    String
+  nameAr    String
+  dayOfWeek Int?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships    TeamMembership[]
+  assignments    Assignment[]
+  submissions    FormSubmission[]
+  stockMovements StockMovement[]
+  restocks       RestockRequest[]
+
+  @@index([isActive])
+}
+
+model TeamMembership {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId   String
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamRole TeamRole @default(MEMBER)
+  createdAt DateTime @default(now())
+
+  /// A user holds exactly one standing per team.
+  @@unique([userId, teamId])
+  @@index([teamId, teamRole])
+}
+
+/// An ambulance (470–475) or the ER Room.
+model Vehicle {
+  id        String      @id @default(cuid())
+  /// Displayed identifier, e.g. "472".
+  code      String      @unique
+  nameEn    String
+  nameAr    String
+  kind      VehicleKind @default(AMBULANCE)
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  assignments    Assignment[]
+  submissions    FormSubmission[]
+  stockMovements StockMovement[]
+  restocks       RestockRequest[]
+  /// Per-vehicle exceptions to the form's rules.
+  ruleOverrides  VehicleRuleOverride[]
+  /// Every vehicle has its own stock location, so restocking it is an ordinary
+  /// transfer and its holdings are visible like any other balance.
+  location       StorageLocation?
+
+  @@index([isActive])
+  @@index([kind])
+}
+
+/// "On 2026-09-14, the Monday team put Ali and Sara on vehicle 472."
+/// This is what tells the API which report a normal user is allowed to open.
+model Assignment {
+  id             String   @id @default(cuid())
+  teamId         String
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  vehicleId      String
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  /// Date only (time zeroed in UTC) — the shift day, not a timestamp.
+  shiftDate      DateTime @db.Date
+  firstPersonId  String?
+  firstPerson    User?    @relation("AssignmentFirstPerson", fields: [firstPersonId], references: [id], onDelete: SetNull)
+  secondPersonId String?
+  secondPerson   User?    @relation("AssignmentSecondPerson", fields: [secondPersonId], references: [id], onDelete: SetNull)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  submissions FormSubmission[]
+
+  /// One vehicle cannot be assigned twice on the same day.
+  @@unique([vehicleId, shiftDate])
+  @@index([teamId, shiftDate])
+  @@index([shiftDate])
+}
+
+// =============================================================================
+//  3. INVENTORY ENGINE  (serves BOTH clothing and medical equipment)
+// =============================================================================
+
+/// "Clothing", "Medical Equipment", … The super admin may add more.
+model ItemCategory {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  nameEn      String
+  nameAr      String
+  description String?
+  /// Icon name rendered by the frontend (lucide-react icon key).
+  icon        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items         Item[]
+  attributeDefs ItemAttributeDef[]
+
+  @@index([isActive])
+}
+
+/// A super-admin-defined extra column for every item in a category.
+/// THIS is the "super admin can change the fields / tracked section" feature.
+/// Values are stored in Item.attributes keyed by this row's `key`.
+model ItemAttributeDef {
+  id         String        @id @default(cuid())
+  categoryId String
+  category   ItemCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  key        String
+  labelEn    String
+  labelAr    String
+  type       AttributeType @default(TEXT)
+  /// Choices when type = SELECT.
+  options    String[]      @default([])
+  isRequired Boolean       @default(false)
+  /// Show this attribute as a column in the item list table.
+  showInList Boolean       @default(false)
+  sortOrder  Int           @default(0)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([categoryId, key])
+  @@index([categoryId, sortOrder])
+}
+
+/// A line in the item list (your spreadsheet).
+model Item {
+  id         String       @id @default(cuid())
+  categoryId String
+  category   ItemCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  /// Optional internal code / barcode.
+  sku        String?      @unique
+  nameEn     String
+  nameAr     String?
+  /// "piece", "box", "roll", …
+  unit       String       @default("piece")
+
+  /// The `Track Expiry? YES/NO` column from your sheet. When true, every
+  /// movement must name a batch + expiry date.
+  trackExpiry       Boolean  @default(false)
+  /// When true, stock is kept per size (clothing).
+  trackSize         Boolean  @default(false)
+  /// Custom, per-item sizes. Free text so "S/M/L" and "40/42/44" both work.
+  sizes             String[] @default([])
+  /// Dashboard warns when total on hand drops below this.
+  lowStockThreshold Int      @default(0)
+  /// Warn this many days before a batch expires.
+  expiryWarningDays Int      @default(30)
+
+  /// Values for the category's ItemAttributeDef rows. Dynamic by design.
+  attributes Json     @default("{}")
+  notes      String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  lots         StockLot[]
+  movements    StockMovement[]
+  restockLines RestockLine[]
+
+  @@index([categoryId, isActive])
+  @@index([nameEn])
+  @@index([trackExpiry])
+}
+
+/// Where stock physically sits: the main store, the daily-use cabinet, and one
+/// row per vehicle.
+///
+/// WHY THIS EXISTS: "issue 20 gloves" is not a complete fact — the station
+/// needs to know whether they left the building or merely moved from the
+/// stockroom into the cabinet the crews draw from each morning. Without
+/// locations, a balance of 40 gloves could mean anything, and "what is actually
+/// in the cabinet right now?" is unanswerable.
+///
+/// A VEHICLE location mirrors a Vehicle row, so restocking an ambulance is an
+/// ordinary transfer and the vehicle's own holdings are visible like any other
+/// balance.
+model StorageLocation {
+  id        String       @id @default(cuid())
+  key       String       @unique
+  nameEn    String
+  nameAr    String
+  kind      LocationKind @default(OTHER)
+  /// Set when kind = VEHICLE. Keeps the location and the vehicle in step.
+  vehicleId String?      @unique
+  vehicle   Vehicle?     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  /// The one location new deliveries land in, and the default source for a
+  /// restock. Exactly one row should have this set.
+  isDefault Boolean      @default(false)
+  isActive  Boolean      @default(true)
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  lots          StockLot[]
+  movementsFrom StockMovement[]  @relation("MovementFromLocation")
+  movementsTo   StockMovement[]  @relation("MovementToLocation")
+  restockFrom   RestockRequest[] @relation("RestockSource")
+  restockTo     RestockRequest[] @relation("RestockTarget")
+
+  @@index([kind, isActive])
+}
+
+/// THE BALANCE LINE. One row per distinct (item, size, batch, expiry).
+/// An item that tracks neither size nor expiry has exactly one lot with both
+/// columns null. `quantityOnHand` is maintained transactionally alongside
+/// every StockMovement — it is a cache of the ledger, never edited directly.
+model StockLot {
+  id             String          @id @default(cuid())
+  itemId         String
+  item           Item            @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  /// WHERE this balance is. The same item, size and batch held in the store and
+  /// in the cabinet are two separate lots — which is the entire point.
+  locationId     String
+  location       StorageLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  size           String?
+  batchNumber    String?
+  expiryDate     DateTime?       @db.Date
+  quantityOnHand Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  movements StockMovement[]
+
+  /// Guarantees one balance row per real-world lot PER LOCATION, so concurrent
+  /// movements can safely upsert instead of creating duplicates.
+  @@unique([itemId, locationId, size, batchNumber, expiryDate])
+  @@index([itemId])
+  @@index([locationId])
+  @@index([expiryDate])
+}
+
+/// The immutable in/out ledger — your "summary log".
+/// Rows are NEVER updated or deleted. Corrections are new ADJUST rows.
+model StockMovement {
+  id        String            @id @default(cuid())
+  itemId    String
+  item      Item              @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  lotId     String
+  lot       StockLot          @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  direction MovementDirection
+  /// Always positive for IN/OUT; signed for ADJUST.
+  quantity  Int
+
+  /// The date the stock actually moved, chosen by the user — deliberately
+  /// separate from createdAt, which is when it was typed in.
+  movementDate DateTime @db.Date
+
+  // ---- Where it moved between --------------------------------------------
+  /// Null for IN (it came from outside the station).
+  fromLocationId String?
+  fromLocation   StorageLocation? @relation("MovementFromLocation", fields: [fromLocationId], references: [id], onDelete: SetNull)
+  /// Null for OUT (it left the station, or was consumed).
+  toLocationId   String?
+  toLocation     StorageLocation? @relation("MovementToLocation", fields: [toLocationId], references: [id], onDelete: SetNull)
+
+  /// The restock line this movement fulfilled, when it came from the board.
+  /// Lets a delivery be traced back to the report that asked for it.
+  restockLineId String?      @unique
+  restockLine   RestockLine? @relation(fields: [restockLineId], references: [id], onDelete: SetNull)
+
+  // ---- Counterparty: who/what the stock went to or came from --------------
+  /// Set when issuing to a registered user (clothing handed to a volunteer).
+  issuedToUserId String?
+  issuedToUser   User?    @relation("MovementIssuedTo", fields: [issuedToUserId], references: [id], onDelete: SetNull)
+  /// Free text for people who are not system users, or a supplier name.
+  counterparty   String?
+  teamId         String?
+  team           Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  vehicleId      String?
+  vehicle        Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  /// "donation", "restock_vehicle", "damaged", "expired", "count_correction", …
+  reason      String?
+  note        String?
+  /// Delivery note / voucher number.
+  documentRef String?
+
+  /// Snapshot of the lot balance AFTER this movement — makes the ledger
+  /// readable ("on hand: 12") without re-summing history on every page load.
+  balanceAfter Int
+
+  recordedById String
+  recordedBy   User     @relation("MovementRecordedBy", fields: [recordedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([itemId, movementDate])
+  @@index([movementDate])
+  @@index([direction])
+  @@index([teamId])
+  @@index([issuedToUserId])
+  @@index([createdAt])
+}
+
+// =============================================================================
+//  4. DYNAMIC FORMS — the equipment report
+// =============================================================================
+
+model FormTemplate {
+  id            String         @id @default(cuid())
+  /// Stable across versions, e.g. "ambulance_equipment_report".
+  key           String
+  version       Int            @default(1)
+  titleEn       String
+  titleAr       String
+  descriptionEn String?
+  descriptionAr String?
+  scope         FormScope      @default(AMBULANCE)
+  status        TemplateStatus @default(DRAFT)
+  publishedAt   DateTime?
+  createdById   String?
+  createdBy     User?          @relation("TemplateAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  sections    FormSection[]
+  submissions FormSubmission[]
+
+  /// A key identifies a family; the pair identifies one frozen version.
+  @@unique([key, version])
+  @@index([status, scope])
+}
+
+model FormSection {
+  id            String   @id @default(cuid())
+  templateId    String
+  template      FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  key           String
+  titleEn       String
+  titleAr       String
+  descriptionEn String?
+  descriptionAr String?
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  fields FormField[]
+
+  @@unique([templateId, key])
+  @@index([templateId, sortOrder])
+}
+
+/// One question. `config` holds the type-specific shape AND the thresholds.
+///
+/// NUMBER_CHOICE:
+///   { "choices": [0,1,2,3,4], "threshold": { "expected": 1, "warnBelow": 1, "criticalBelow": 1 } }
+///
+/// GRID (the matrix questions):
+///   { "choices": [0,1,2],
+///     "rows": [ { "key": "red",  "labelEn": "Red",  "labelAr": "أحمر",
+///                 "threshold": { "expected": 2, "warnBelow": 2, "criticalBelow": 1 } } ] }
+///
+/// SINGLE_SELECT:
+///   { "options": [ { "value": "empty_quarter", "labelEn": "Empty to Quarter",
+///                    "labelAr": "فارغة الى الربع", "severity": "CRITICAL" } ] }
+///
+/// Keeping this in JSONB is what makes the form builder possible: the super
+/// admin adds a field from the dashboard and no migration is needed.
+model FormField {
+  id         String    @id @default(cuid())
+  sectionId  String
+  section    FormSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  /// Stable key used inside FormSubmission.answers. Never reused.
+  key        String
+  labelEn    String
+  labelAr    String
+  helpEn     String?
+  helpAr     String?
+  type       FieldType @default(NUMBER_CHOICE)
+  isRequired Boolean   @default(true)
+  sortOrder  Int       @default(0)
+  config     Json      @default("{}")
+  /// Optional link to the inventory item this question counts, so a shortage
+  /// can be turned into a stock issue in one click.
+  linkedItemId String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([sectionId, key])
+  @@index([sectionId, sortOrder])
+}
+
+/// One filled report.
+model FormSubmission {
+  id           String       @id @default(cuid())
+  templateId   String
+  template     FormTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  /// Denormalised copy of template.version so the report always shows which
+  /// rules it was judged against, even years later.
+  templateVersion Int
+
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  shiftDate DateTime @db.Date
+
+  assignmentId String?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  submittedById String
+  submittedBy   User   @relation("SubmissionAuthor", fields: [submittedById], references: [id])
+  /// The "Second Assigned Person" — may be an unregistered helper, so text.
+  secondPersonName String?
+
+  status      SubmissionStatus @default(DRAFT)
+  /// { fieldKey: value }. Value shape depends on the field type; GRID stores
+  /// { rowKey: number }.
+  answers     Json             @default("{}")
+  /// Pre-computed threshold result — see docs/02-DOMAIN-MODEL.md.
+  /// { counts: {ok,warn,critical}, issues: [...] }
+  summary     Json             @default("{}")
+  /// Denormalised for cheap sorting/filtering on the team dashboard.
+  criticalCount Int            @default(0)
+  warnCount     Int            @default(0)
+
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+  reviewedById String?
+  reviewedBy   User?    @relation("SubmissionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Restock jobs raised from this report's shortages.
+  restocks RestockRequest[]
+
+  /// One report per vehicle per day per template family.
+  @@unique([vehicleId, shiftDate, templateId])
+  @@index([teamId, shiftDate])
+  @@index([shiftDate])
+  @@index([submittedById])
+  @@index([status])
+  @@index([criticalCount])
+}
+
+/// A per-vehicle exception to one of the form's rules.
+///
+/// WHY THIS EXISTS
+///
+/// Every vehicle fills in the SAME form — that is deliberate, because one form
+/// means one standard and one place to change it. But the fleet is not
+/// identical: 474 may carry no Matlat at all, 471 may carry a different brand
+/// of splint that nobody should be flagged for, and the ER Room needs fewer of
+/// several things than an ambulance.
+///
+/// Without exceptions there were only two bad options: keep a separate form per
+/// vehicle (six forms to maintain, guaranteed to drift apart), or leave crews
+/// filing reports that are permanently red for equipment their vehicle is not
+/// supposed to have. The second is worse — people stop reading a dashboard that
+/// is always red, and then a REAL shortage goes unnoticed.
+///
+/// So: one form, plus a short list of deliberate, documented exceptions per
+/// vehicle. `note` is there because in a year nobody will remember why 474 is
+/// exempt from something, and an undocumented exception is indistinguishable
+/// from a mistake.
+model VehicleRuleOverride {
+  id        String  @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  /// Which question this applies to — matched by the form's stable field key.
+  fieldKey String
+  /// For a GRID, which row.
+  ///
+  /// EMPTY STRING — not null — means "the question as a whole", and that is a
+  /// deliberate choice rather than a stylistic one. In PostgreSQL, NULL is not
+  /// equal to NULL, so a unique index over a nullable column does NOT stop two
+  /// rows that both have NULL there. With `rowKey String?` the constraint below
+  /// silently failed to prevent exactly the duplicate, conflicting rules it
+  /// exists to prevent. (Prisma also refuses to accept null in a compound
+  /// unique lookup, which is how this surfaced.)
+  ///
+  /// A sentinel makes the constraint real.
+  rowKey   String  @default("")
+
+  /// This vehicle does not carry the item at all: the question is hidden when
+  /// filling the form, and never produces a shortage.
+  isExcluded Boolean @default(false)
+
+  /// Replacement threshold. Any part left null falls back to the form's own
+  /// value, so "this vehicle needs 1 instead of 2" is a single number.
+  expected      Int?
+  warnBelow     Int?
+  criticalBelow Int?
+
+  /// Optional urgency change — e.g. the item is carried but its absence is not
+  /// as serious on this vehicle.
+  priority Priority?
+
+  /// WHY the exception exists. Required in practice by the API, because an
+  /// undocumented exception looks exactly like a bug.
+  note String?
+
+  createdById String?
+  createdBy   User?    @relation("VehicleRuleAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// One rule per (vehicle, question, row) — so editing an exception updates it
+  /// rather than quietly stacking a second, conflicting one. This works only
+  /// because `rowKey` is non-nullable; see the note on that field.
+  @@unique([vehicleId, fieldKey, rowKey])
+  @@index([vehicleId])
+}
+
+// =============================================================================
+//  5. RESTOCK WORKFLOW  —  the Kanban board
+// =============================================================================
+//  Closes the loop between "a report says 472 is short two tourniquets" and
+//  "472 now has them".
+//
+//  Before this existed, a shortage was only ever a red badge on a dashboard.
+//  Someone had to notice it, remember it, fetch the items, and separately
+//  record the stock movement — four chances to drop it, none of them tracked.
+//
+//  A request is created from a report's shortages when the Team Equipment
+//  Officer reviews it, then moves across the board:
+//
+//      OPEN ──► PICKING ──► DELIVERED ──► CONFIRMED
+//                                │
+//                                └── stock TRANSFERS from the cabinet to the
+//                                    vehicle at this step, automatically
+// =============================================================================
+
+/// One restocking job: everything one vehicle needs after one report.
+///
+/// Grouped per vehicle rather than one card per missing item, because that is
+/// how the work is actually done — somebody walks to the cabinet once and
+/// carries everything out to 472 together.
+model RestockRequest {
+  id           String  @id @default(cuid())
+  /// The report that raised it. Null when an officer raises one by hand.
+  submissionId String?
+  submission   FormSubmission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  shiftDate DateTime @db.Date
+
+  status   RestockStatus @default(OPEN)
+  /// Highest priority among its lines, denormalised so the board can sort
+  /// without opening every card.
+  priority Priority      @default(NORMAL)
+
+  /// Where the items are taken FROM — normally the daily cabinet.
+  sourceLocationId String
+  sourceLocation   StorageLocation @relation("RestockSource", fields: [sourceLocationId], references: [id], onDelete: Restrict)
+  /// Where they are going — the vehicle's own location row.
+  targetLocationId String
+  targetLocation   StorageLocation @relation("RestockTarget", fields: [targetLocationId], references: [id], onDelete: Restrict)
+
+  requestedById String
+  requestedBy   User   @relation("RestockRequestedBy", fields: [requestedById], references: [id])
+  /// The equipment officer preparing the items.
+  assignedToId  String?
+  assignedTo    User?  @relation("RestockAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  /// The crew member who collected the items and confirmed they are loaded.
+  /// Deliberately a different person from the one who prepared them — the
+  /// confirmation is worth something precisely because it is independent.
+  confirmedById String?
+  confirmedBy   User?  @relation("RestockConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+
+  note String?
+
+  /// When the equipment officer started gathering.
+  startedAt   DateTime?
+  /// When the items were set aside for the crew to collect.
+  readyAt     DateTime?
+  /// When the crew confirmed they are in the vehicle. Stock moved at this point.
+  confirmedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  lines RestockLine[]
+
+  @@index([status, priority])
+  @@index([teamId, shiftDate])
+  @@index([vehicleId])
+  @@index([assignedToId])
+  @@index([createdAt])
+}
+
+/// One item on a restock request.
+///
+/// `fieldKey` / `rowKey` point back at the question that raised it, and the
+/// label is SNAPSHOT text — so the card still reads correctly even if the form
+/// is later edited or the question removed.
+model RestockLine {
+  id        String         @id @default(cuid())
+  requestId String
+  request   RestockRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  /// Which question this came from. Null for a line added by hand.
+  fieldKey String?
+  rowKey   String?
+  /// Snapshot of how it read on the report. Never re-derived.
+  label    String
+  labelAr  String?
+
+  /// The inventory item to move. Null when the shortage has no linked item yet
+  /// — the line is still trackable, it just cannot move stock automatically.
+  itemId String?
+  item   Item?   @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  /// Which size, for size-tracked items.
+  size   String?
+
+  priority Priority @default(NORMAL)
+  /// What the report said was on the vehicle, and what should have been.
+  reportedQuantity Int?
+  expectedQuantity Int?
+  /// How many to take. Defaults to the gap, but the officer can override —
+  /// they may want to top up further while they are there.
+  quantityNeeded   Int      @default(1)
+  /// How many actually made it onto the vehicle. May be short if the cabinet
+  /// did not have enough, which is itself worth knowing.
+  quantityIssued   Int      @default(0)
+
+  /// True once stock has been transferred for this line.
+  isFulfilled Boolean @default(false)
+  note        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The ledger entry that moved the stock, when one was made.
+  movement StockMovement?
+
+  @@index([requestId])
+  @@index([itemId])
+}
+
+// =============================================================================
+//  6. SETTINGS
+// =============================================================================
+
+/// Small key/value store for station-wide configuration the super admin can
+/// edit (branding, default thresholds, notification toggles). Kept as one
+/// table so adding a setting never needs a migration.
+model Setting {
+  key         String   @id
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+}

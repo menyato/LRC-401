@@ -1,0 +1,58 @@
+<!doctype html>
+<!--
+  The `lang` and `dir` attributes are set here as a default and then updated at
+  runtime by src/lib/i18n.js when the user switches language. Arabic needs
+  dir="rtl", and setting it on <html> lets the browser mirror the ENTIRE layout —
+  padding, borders, flex direction — instead of us writing mirrored CSS by hand.
+-->
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!--
+      viewport-fit + maximum-scale is deliberately NOT locked: pinch-zoom must
+      keep working. A volunteer reading a 200-row equipment report on a phone in
+      a dim ambulance bay needs to be able to zoom in.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <meta name="description" content="Lebanese Red Cross Saida 401 — equipment reporting and inventory" />
+    <!-- Colours the browser chrome on mobile to match the header. -->
+    <meta name="theme-color" content="#ED1B2E" />
+
+    <!-- Internal tool: keep it out of search engines. -->
+    <meta name="robots" content="noindex, nofollow" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>LRC Saida 401</title>
+      <!--
+      Applies the saved theme BEFORE the first paint.
+
+      Without this the page renders white, React loads, and only then switches
+      to dark — a bright flash straight into the eyes of someone using the app
+      at 3am. It has to be inline and synchronous: an external script or a
+      React effect both run too late.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('lrc-theme') || 'system';
+          var dark =
+            stored === 'dark' ||
+            (stored === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+          if (dark) document.documentElement.classList.add('dark');
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {
+          /* Storage blocked — light mode is a safe default. */
+        }
+      })();
+    </script>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

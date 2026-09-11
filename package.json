@@ -1,0 +1,31 @@
+{
+  "name": "lrc-401",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lebanese Red Cross — Saida 401: inventory, equipment reporting and access management",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "//": "Root package: it owns NO application code. It only orchestrates the two real packages (server/ and client/) so that everything can be run from one place, as a single `npm run dev`.",
+  "scripts": {
+    "setup": "npm install && npm --prefix server install && npm --prefix client install && npm run db:generate",
+    "dev": "concurrently --names \"API,WEB\" --prefix-colors \"red.bold,cyan.bold\" \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "node scripts/wait-for-api.mjs && npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server run start",
+    "db:generate": "npm --prefix server run db:generate",
+    "db:migrate": "npm --prefix server run db:migrate",
+    "db:deploy": "npm --prefix server run db:deploy",
+    "db:seed": "npm --prefix server run db:seed",
+    "db:reset": "npm --prefix server run db:reset",
+    "db:studio": "npm --prefix server run db:studio",
+    "lint": "npm --prefix server run lint && npm --prefix client run lint",
+    "format": "prettier --write \"**/*.{js,jsx,json,md,css}\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prettier": "^3.4.2"
+  }
+}

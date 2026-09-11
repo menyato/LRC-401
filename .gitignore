@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Environment secrets — NEVER commit these. Only .env.example is tracked.
+.env
+.env.*
+!.env.example
+
+# Build output
+client/dist/
+server/dist/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Local tooling / portable runtimes (kept in ~/tools, never in the repo)
+tools/
+
+# Editor / OS noise
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Prisma local artifacts
+server/prisma/*.db
+server/prisma/generated/
+
+# Uploads written at runtime
+server/uploads/
+
+# Test coverage
+coverage/
