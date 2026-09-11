@@ -1,37 +1,125 @@
-# Dependencies
-node_modules/
+# =============================================================================
+#  What must never reach the repository
+# =============================================================================
+#  Two separate concerns, and the second is the dangerous one:
+#
+#    1. Noise    — dependencies, build output, editor files. Committing these
+#                  is untidy and makes diffs unreadable, but nothing worse.
+#
+#    2. SECRETS AND PEOPLE'S DATA — environment files, database dumps, keys.
+#                  A leak here is not untidy, it is a breach: volunteer names,
+#                  emails, password hashes and two-factor secrets. And git
+#                  keeps history, so a file committed once stays recoverable
+#                  even after it is deleted. The only reliable protection is
+#                  never committing it in the first place.
+#
+#  Check before committing anything unfamiliar:   git status
+#  Ask why a specific file is or is not ignored:  git check-ignore -v <path>
+# =============================================================================
 
-# Environment secrets — NEVER commit these. Only .env.example is tracked.
+# -----------------------------------------------------------------------------
+#  SECRETS  — the section that matters
+# -----------------------------------------------------------------------------
+
+# Environment files. `.env.example` is the tracked template and is the ONLY one
+# that may ever be committed; it contains placeholders, never real values.
 .env
 .env.*
 !.env.example
+**/.env
+**/.env.*
+!**/.env.example
 
-# Build output
+# Certificates and private keys, wherever they land.
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+id_rsa*
+id_ed25519*
+
+# -----------------------------------------------------------------------------
+#  DATABASE DUMPS  — these contain every volunteer's data
+# -----------------------------------------------------------------------------
+#  docs/04-LAUNCH-ROADMAP.md tells you to take backups with pg_dump, and the
+#  obvious place to run that is the project root. A dump holds every user row:
+#  names, emails, password hashes, encrypted 2FA secrets, and the station's
+#  whole equipment history. It must never be committed.
+#
+#  NOTE the deliberate narrowness: `*.sql` is NOT ignored, because Prisma's
+#  migrations are .sql files and they MUST be tracked — they are how the
+#  database is rebuilt. Only backup-shaped names are excluded.
+*.dump
+*.backup
+*.bak
+backup/
+backups/
+dumps/
+lrc401-*.sql
+*-backup-*.sql
+pg_dump*
+
+# -----------------------------------------------------------------------------
+#  DEPENDENCIES AND BUILD OUTPUT
+# -----------------------------------------------------------------------------
+node_modules/
+**/node_modules/
+
 client/dist/
 server/dist/
+dist/
+build/
 *.tsbuildinfo
 
-# Logs
+# Prisma's generated client — rebuilt by `prisma generate` on every install.
+# prisma/migrations is NOT ignored: it is the schema's history and is required.
+**/.prisma/
+server/prisma/generated/
+server/prisma/*.db
+server/prisma/*.db-journal
+
+# -----------------------------------------------------------------------------
+#  RUNTIME AND LOCAL TOOLING
+# -----------------------------------------------------------------------------
 *.log
 npm-debug.log*
+yarn-error.log*
 logs/
 
-# Local tooling / portable runtimes (kept in ~/tools, never in the repo)
-tools/
-
-# Editor / OS noise
-.vscode/*
-!.vscode/extensions.json
-.idea/
-.DS_Store
-Thumbs.db
-
-# Prisma local artifacts
-server/prisma/*.db
-server/prisma/generated/
-
-# Uploads written at runtime
+# Files uploaded by users at runtime — station data, not source.
 server/uploads/
 
-# Test coverage
+# Portable runtimes kept in the project rather than in ~/tools.
+tools/
+*.msi
+*.exe
+
+# Test and coverage artefacts.
 coverage/
+.nyc_output/
+*.lcov
+
+# -----------------------------------------------------------------------------
+#  EDITOR AND OS NOISE
+# -----------------------------------------------------------------------------
+# .vscode is not ignored wholesale: shared recommendations and launch configs
+# are genuinely useful to a future maintainer. Only personal settings are.
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Agent/session scratch files, if any tool writes them into the project.
+.claude/
+*.scratch
+__*-probe.*
