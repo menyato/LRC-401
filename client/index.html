@@ -25,30 +25,19 @@
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>LRC Saida 401</title>
-      <!--
+    <!--
       Applies the saved theme BEFORE the first paint.
 
       Without this the page renders white, React loads, and only then switches
       to dark — a bright flash straight into the eyes of someone using the app
-      at 3am. It has to be inline and synchronous: an external script or a
-      React effect both run too late.
-    -->
-    <script>
-      (function () {
-        try {
-          var stored = localStorage.getItem('lrc-theme') || 'system';
-          var dark =
-            stored === 'dark' ||
-            (stored === 'system' &&
-              window.matchMedia('(prefers-color-scheme: dark)').matches);
+      at 3am. It must be a plain, synchronous script tag in the head (no async,
+      defer or type="module"): the parser stops and runs it before rendering
+      the body. A React effect would run too late.
 
-          if (dark) document.documentElement.classList.add('dark');
-          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-        } catch (e) {
-          /* Storage blocked — light mode is a safe default. */
-        }
-      })();
-    </script>
+      It is a file rather than inline so the Content-Security-Policy can stay
+      `script-src 'self'` on every host, with no hashes to keep in sync.
+    -->
+    <script src="/theme-init.js"></script>
   </head>
 
   <body>

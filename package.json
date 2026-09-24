@@ -22,6 +22,7 @@
     "db:reset": "npm --prefix server run db:reset",
     "db:studio": "npm --prefix server run db:studio",
     "lint": "npm --prefix server run lint && npm --prefix client run lint",
+    "secrets": "node scripts/generate-secrets.mjs",
     "format": "prettier --write \"**/*.{js,jsx,json,md,css}\""
   },
   "devDependencies": {
