@@ -176,13 +176,31 @@ export async function inviteUser(input, actor, context = {}) {
 
   // Sent AFTER the transaction commits: emailing a link for a row that was
   // rolled back would produce an invitation that can never be accepted.
-  await sendInvitationEmail({
-    to: invitation.email,
-    fullName: invitation.fullName,
-    roleName: invitation.role?.nameEn ?? 'Member',
-    inviterName: actor.fullName,
-    token,
-  });
+  try {
+    await sendInvitationEmail({
+      to: invitation.email,
+      fullName: invitation.fullName,
+      roleName: invitation.role?.nameEn ?? 'Member',
+      inviterName: actor.fullName,
+      token,
+    });
+  } catch (error) {
+    // The link exists only in the email that just failed, so this invitation
+    // can never be accepted. Revoke it rather than leave a "pending" row the
+    // admin would wait on, and say plainly what went wrong — a bare 500 made
+    // an SMTP misconfiguration look like a crash.
+    logger.error({ err: error, invitationId: invitation.id }, 'Invitation email failed');
+    await prisma.invitation.update({
+      where: { id: invitation.id },
+      data: { revokedAt: new Date() },
+    });
+    throw new ApiError(
+      502,
+      'The invitation email could not be sent, so no invitation was created. ' +
+        'Check the email settings (SMTP) and try again.',
+      { code: 'EMAIL_NOT_SENT' },
+    );
+  }
 
   await recordAudit({
     actorId: actor.id,

@@ -486,11 +486,19 @@ export async function forgotPassword({ email }, context = {}) {
     }),
   ]);
 
-  await emailService.sendPasswordResetEmail({
-    to: user.email,
-    fullName: user.fullName,
-    token,
-  });
+  try {
+    await emailService.sendPasswordResetEmail({
+      to: user.email,
+      fullName: user.fullName,
+      token,
+    });
+  } catch (error) {
+    // Swallowed, not thrown: a 500 here — while an unknown address gets the
+    // normal reply — would reveal exactly which emails have accounts whenever
+    // the mail server is down or misconfigured. Logged loudly instead.
+    logger.error({ err: error, userId: user.id }, 'Password reset email failed');
+    return;
+  }
 
   await recordAudit({
     actorId: user.id,
