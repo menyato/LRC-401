@@ -4,7 +4,7 @@
   "installCommand": "npm ci --include=dev --prefix client && npm ci --include=dev --prefix server",
   "buildCommand": "npm run build --prefix client && npm run db:generate --prefix server",
   "outputDirectory": "client/dist",
-  "regions": ["fra1"],
+  "regions": ["lhr1"],
   "git": {
     "deploymentEnabled": {
       "dev": false,

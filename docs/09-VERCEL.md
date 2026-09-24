@@ -20,7 +20,7 @@ configuration is all in [`vercel.json`](../vercel.json):
 
 - **Build:** installs `client/` and `server/`, builds the React app, and generates
   the Prisma client.
-- **Region:** Frankfurt (`fra1`), next to the Neon database.
+- **Region:** London (`lhr1`), next to the Neon database (eu-west-2). If you move the database, move this too.
 - **Branches:** only `staging` deploys to this project. `dev` and `production` are
   switched off with `git.deploymentEnabled`, so everyday work on `dev` never
   touches the demo.
