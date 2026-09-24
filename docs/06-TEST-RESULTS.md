@@ -139,6 +139,24 @@ Recorded because the *reason* each was wrong is itself documentation:
   deactivates its own org data, and the smoke suite asserts the *seeded* fleet is
   present rather than an exact total.
 
+### 10–14. Found by the security suite (`test:security`)
+
+The third suite sends hostile input to every endpoint, and its only rule is
+that nothing may return a 5xx. On its first run it found:
+
+| # | Input | Was | Now |
+| --- | --- | --- | --- |
+| 10 | A NUL byte (`\u0000`) in any text field or search | **500**: Postgres cannot store U+0000, and Zod accepts it | 422, rejected once for the whole app in `middleware/rejectNulBytes.js` |
+| 11 | `?page=99999999999999999999` on any list | **500**: the OFFSET overflowed BIGINT | 422, `page` capped at 10 000 |
+| 12 | A stock movement of 3 000 000 000 | Passed validation, then failed in the 32-bit column | 422, `quantity` bounded to ±1 000 000 |
+| 13 | A request from an origin not on the CORS allow-list | **500** "Something went wrong" | 403 `CORS_REJECTED` |
+| 14 | `SMTP_SECURE=false` in `.env` | Parsed as **true** (`z.coerce.boolean` truthiness), so SMTP on port 587 would fail every send | Parsed as written |
+
+Found while reviewing, not by a test: user names were interpolated into the
+**HTML** of emails unescaped. A volunteer who set their name to a link would
+have had it rendered as a working link inside every invitation they sent. Names
+are now HTML-escaped.
+
 ---
 
 ## Behaviour that looked like a bug and is not

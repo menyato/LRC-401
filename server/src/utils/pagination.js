@@ -36,7 +36,10 @@ export const DEFAULT_LIMIT = 25;
  */
 export const paginationQuery = z.object({
   // `coerce` because query strings arrive as text: "?page=2" -> 2.
-  page: z.coerce.number().int().min(1).default(1),
+  // Capped: `?page=99999999999999999999` coerces to 1e20, and the resulting
+  // OFFSET overflowed Postgres's BIGINT — a 500 from one crafted URL.
+  // 10 000 pages × 100 rows is far beyond any real list here.
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
   /** Free-text search. Trimmed, and capped so it cannot become a huge LIKE. */
   search: z.string().trim().max(120).optional(),

@@ -39,15 +39,16 @@ Full instructions, the manual walkthrough and troubleshooting:
 
 ```powershell
 npm start                  # terminal 1
-npm --prefix server test   # terminal 2 — runs both suites
+npm --prefix server test   # terminal 2 — runs all three suites
 ```
 
-**115 tests, 0 failures**, verified over three consecutive full passes.
+**147 tests, 0 failures.**
 
 | Suite | Tests | What it proves |
 | --- | --- | --- |
 | `test:smoke` | 57 | Every endpoint works, against the real database over real HTTP |
-| `test:scenarios` | 58 | Four people with different roles signed in at once — and unable to see each other's data |
+| `test:scenarios` | 59 | Four people with different roles signed in at once — and unable to see each other's data |
+| `test:security` | 31 | Forged tokens, foreign origins, mass assignment, privilege escalation, path traversal, and hostile input on every endpoint — nothing may return a 5xx |
 
 Testing found **six real product bugs**, including a stolen access token
 surviving a password change and a rate limiter that locked the whole app out
@@ -66,6 +67,8 @@ after ten page loads. All are documented in
 | [04 — Launch roadmap](docs/04-LAUNCH-ROADMAP.md) | Hosting, costs, deployment steps, and what must happen before real data |
 | [05 — Activity diagrams](docs/05-ACTIVITY-DIAGRAMS.md) | The six main flows as diagrams |
 | [06 — Test results](docs/06-TEST-RESULTS.md) | What is verified, and every bug the tests found |
+| [07 — Branches](docs/07-BRANCHES-AND-DEPLOYMENT.md) | dev → staging → production |
+| [08 — Deployment](docs/08-DEPLOYMENT.md) | Putting it online: Render + Neon + email, step by step |
 
 ---
 
@@ -133,9 +136,8 @@ client/
 
 ## Status
 
-Backend complete, 115 automated tests passing. Web app complete and building
-clean. Deployment not yet done — see
-[docs/04-LAUNCH-ROADMAP.md](docs/04-LAUNCH-ROADMAP.md).
+Backend complete, 147 automated tests passing. Web app complete and building
+clean. Ready to deploy — see [docs/08-DEPLOYMENT.md](docs/08-DEPLOYMENT.md).
 
 The React app itself has no automated tests yet; that is the largest remaining
 gap and is listed in [docs/06-TEST-RESULTS.md](docs/06-TEST-RESULTS.md).

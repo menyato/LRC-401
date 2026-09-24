@@ -76,6 +76,21 @@ async function send({ to, subject, html, text }) {
 // -----------------------------------------------------------------------------
 
 /**
+ * Escapes text for the HTML body of an email.
+ *
+ * Names are user-controlled — anyone can set their own `fullName` from the
+ * account page — and they appear in emails sent to OTHER people (the inviter's
+ * name is in every invitation). Unescaped, a name such as
+ * `<a href="https://evil.example">Click here</a>` would become a working link
+ * inside an official-looking Red Cross email: a phishing kit for free.
+ */
+const escapeHtml = (value) =>
+  String(value ?? '').replace(
+    /[&<>"']/g,
+    (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch],
+  );
+
+/**
  * Wraps content in a minimal, table-free HTML shell.
  *
  * Deliberately plain: email clients (especially Outlook and older Android mail
@@ -120,6 +135,11 @@ const button = (url, label) => `
  * Letting the person choose their own on a secure page avoids all of that.
  */
 export async function sendInvitationEmail({ to, fullName, roleName, inviterName, token }) {
+  const safe = {
+    fullName: escapeHtml(fullName),
+    roleName: escapeHtml(roleName),
+    inviterName: escapeHtml(inviterName),
+  };
   const url = `${env.CLIENT_URL}/accept-invitation?token=${encodeURIComponent(token)}`;
   const hours = env.INVITE_TTL_HOURS;
 
@@ -140,17 +160,17 @@ export async function sendInvitationEmail({ to, fullName, roleName, inviterName,
   ].join('\n');
 
   const html = layout(`
-    <p>Hello <strong>${fullName}</strong>,</p>
-    <p><strong>${inviterName}</strong> has invited you to the Lebanese Red Cross Saida 401 system
-       as <strong>${roleName}</strong>.</p>
+    <p>Hello <strong>${safe.fullName}</strong>,</p>
+    <p><strong>${safe.inviterName}</strong> has invited you to the Lebanese Red Cross Saida 401 system
+       as <strong>${safe.roleName}</strong>.</p>
     <p>Click below to set your own password and activate your account.</p>
     ${button(url, 'Accept invitation')}
     <p style="color:#71717a;font-size:13px;">This link expires in ${hours} hours. If you were not
        expecting this invitation, you can ignore this email.</p>
     <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0;" />
     <div dir="rtl" style="text-align:right;">
-      <p>مرحباً <strong>${fullName}</strong>،</p>
-      <p>تمت دعوتك للانضمام إلى نظام الصليب الأحمر اللبناني - صيدا ٤٠١ بصفة <strong>${roleName}</strong>.</p>
+      <p>مرحباً <strong>${safe.fullName}</strong>،</p>
+      <p>تمت دعوتك للانضمام إلى نظام الصليب الأحمر اللبناني - صيدا ٤٠١ بصفة <strong>${safe.roleName}</strong>.</p>
       <p>اضغط على الزر أعلاه لتعيين كلمة المرور الخاصة بك وتفعيل حسابك.
          تنتهي صلاحية الرابط خلال ${hours} ساعة.</p>
     </div>`);
@@ -174,7 +194,7 @@ export async function sendPasswordResetEmail({ to, fullName, token }) {
   ].join('\n');
 
   const html = layout(`
-    <p>Hello <strong>${fullName}</strong>,</p>
+    <p>Hello <strong>${escapeHtml(fullName)}</strong>,</p>
     <p>We received a request to reset your password.</p>
     ${button(url, 'Choose a new password')}
     <p style="color:#71717a;font-size:13px;">This link expires in ${minutes} minutes. If you did not
@@ -202,7 +222,7 @@ export async function sendPasswordChangedEmail({ to, fullName }) {
   ].join('\n');
 
   const html = layout(`
-    <p>Hello <strong>${fullName}</strong>,</p>
+    <p>Hello <strong>${escapeHtml(fullName)}</strong>,</p>
     <p>Your password was just changed. For your security, every other signed-in device
        has been signed out.</p>
     <p style="color:#b91c1c;"><strong>If this was not you, contact the station super admin

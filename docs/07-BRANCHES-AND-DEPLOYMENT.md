@@ -44,7 +44,7 @@ against a database that is not the one holding the real equipment records.
 2. **`staging` only ever receives merges from `dev`**, and only when the tests
    pass:
    ```powershell
-   npm --prefix server test          # 116 tests must be green
+   npm --prefix server test          # smoke + scenarios + security, all green
    npm --prefix server run typecheck
    npm run lint
    ```
@@ -125,4 +125,4 @@ database, and they must not share secrets.
 Migrations run per environment with `npm run db:deploy` (never `db:migrate`,
 which can offer to reset the database).
 
-Full hosting setup is in [04-LAUNCH-ROADMAP.md](04-LAUNCH-ROADMAP.md).
+Full hosting setup is in [08-DEPLOYMENT.md](08-DEPLOYMENT.md).

@@ -19,15 +19,63 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import hpp from 'hpp';
 import pinoHttp from 'pino-http';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { apiLimiter } from './middleware/rateLimiters.js';
+import { rejectNulBytes } from './middleware/rejectNulBytes.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 import apiRoutes from './routes.js';
+import { ApiError } from './utils/ApiError.js';
+
+/** The built React app: client/dist, two levels up from server/src. */
+const CLIENT_DIST = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  'client',
+  'dist',
+);
+
+/**
+ * Loads the built web app when SERVE_CLIENT is on, and fails at BOOT if it is
+ * missing — a server that starts and then serves a 404 for "/" looks healthy to
+ * the platform's health check while every volunteer sees a blank page.
+ *
+ * Also returns the CSP hashes of index.html's inline scripts. There is exactly
+ * one — the theme script that must run before first paint — and hashing it lets
+ * the policy stay `script-src 'self'` instead of opening up 'unsafe-inline'.
+ * Computed from the built file, so editing the script cannot desync the hash.
+ */
+function loadClient() {
+  if (!env.SERVE_CLIENT) return null;
+
+  const indexPath = path.join(CLIENT_DIST, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    throw new Error(`SERVE_CLIENT=true but ${indexPath} does not exist — run \`npm run build\` first`);
+  }
+
+  const html = fs.readFileSync(indexPath, 'utf8');
+  const scriptHashes = [...html.matchAll(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/g)].map(
+    // The browser hashes the script AFTER the HTML parser turns CRLF into LF,
+    // so a file built on Windows must be normalised the same way or the hash
+    // never matches and the theme script is silently blocked.
+    ([, body]) => {
+      const normalised = body.replace(/\r\n?/g, '\n');
+      return `'sha256-${crypto.createHash('sha256').update(normalised).digest('base64')}'`;
+    },
+  );
+
+  return { scriptHashes };
+}
 
 export function createApp() {
   const app = express();
+  const client = loadClient();
 
   // ---------------------------------------------------------------------------
   //  1. Trust proxy
@@ -51,13 +99,13 @@ export function createApp() {
   // ---------------------------------------------------------------------------
   app.use(
     helmet({
-      // This process serves JSON only — the React app is hosted separately as
-      // static files. A restrictive CSP here protects the few HTML responses
-      // (errors) and costs nothing.
+      // Strict either way: with SERVE_CLIENT this is the React app's policy too.
+      // The app loads nothing from third parties, so 'self' plus the hash of
+      // the one inline theme script is all it needs.
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
+          scriptSrc: ["'self'", ...(client?.scriptHashes ?? [])],
           objectSrc: ["'none'"],
           frameAncestors: ["'none'"], // clickjacking protection
         },
@@ -92,7 +140,10 @@ export function createApp() {
         if (allowedOrigins.has(origin)) return callback(null, true);
 
         logger.warn({ origin }, 'Blocked CORS request from unknown origin');
-        return callback(new Error('Not allowed by CORS'));
+        // An ApiError, not a bare Error: a bare one reached the error handler
+        // as an unknown bug and came back as a 500, which reads as "the server
+        // crashed" in logs and uptime monitors.
+        return callback(ApiError.forbidden('Origin not allowed', { code: 'CORS_REJECTED' }));
       },
       // Required for the httpOnly refresh cookie to be sent and set.
       credentials: true,
@@ -123,6 +174,10 @@ export function createApp() {
   //  simple case. hpp keeps the last value only.
   // ---------------------------------------------------------------------------
   app.use(hpp());
+
+  // Postgres cannot store U+0000; refuse it before it reaches a query and
+  // becomes a 500. See middleware/rejectNulBytes.js.
+  app.use(rejectNulBytes);
 
   // ---------------------------------------------------------------------------
   //  6. Compression
@@ -173,6 +228,32 @@ export function createApp() {
   //  9. Routes (behind the global rate limiter)
   // ---------------------------------------------------------------------------
   app.use('/api', apiLimiter, apiRoutes);
+
+  // ---------------------------------------------------------------------------
+  //  9b. The web app itself (SERVE_CLIENT=true)
+  // ---------------------------------------------------------------------------
+  //  One process serving both the API and the React build is what keeps the
+  //  refresh cookie first-party in production: same origin, no proxy, no CORS.
+  //  Mounted AFTER /api so an unknown API path still gets a JSON 404 below
+  //  rather than the app's HTML.
+  // ---------------------------------------------------------------------------
+  if (client) {
+    // Vite fingerprints everything under /assets (index-DOwDLiJk.js), so a new
+    // deploy always has new file names and these can be cached for a year.
+    app.use(
+      '/assets',
+      express.static(path.join(CLIENT_DIST, 'assets'), { immutable: true, maxAge: '1y', index: false }),
+    );
+    app.use(express.static(CLIENT_DIST, { index: false, maxAge: '1h' }));
+
+    // Client-side routing: /reports/board on refresh must return the app, not a
+    // 404. index.html is never cached, or a deploy would leave phones running
+    // the old bundle against the new API.
+    app.get(/^\/(?!api(\/|$)).*/, (_req, res) => {
+      res.set('Cache-Control', 'no-cache');
+      res.sendFile(path.join(CLIENT_DIST, 'index.html'));
+    });
+  }
 
   // ---------------------------------------------------------------------------
   //  10. Error handling — ALWAYS LAST

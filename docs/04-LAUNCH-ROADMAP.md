@@ -89,101 +89,19 @@ red flags — and people stop reading a dashboard that cries wolf.
 
 ---
 
-## Part 3 — Hosting
+## Part 3 — Hosting and Part 4 — Deployment steps
 
-### The recommended stack (starts free)
-
-| Layer | Service | Free tier | Paid when you outgrow it |
-| --- | --- | --- | --- |
-| Database | **Neon** (PostgreSQL) | 0.5 GB, auto-suspend, PITR backups | $19/mo |
-| API | **Render** web service | 750 h/mo, sleeps after 15 min idle | $7/mo (no sleep) |
-| Web app | **Cloudflare Pages** | unlimited static bandwidth | free indefinitely |
-| Email | **Brevo** | 300/day | $9/mo |
-| Domain | Namecheap / Cloudflare | — | ~$10/year |
-
-**Realistic total: $0/month to start; ~$7/month to remove the cold start.**
-
-### The one thing to know about the free API tier
-
-Render's free plan sleeps after 15 minutes of inactivity, and the next request
-takes 30–50 seconds to wake it. For a station where someone opens the app at
-07:00 to check a vehicle, that first-load delay is genuinely annoying.
-
-Options:
-- **$7/month** on Render removes it entirely — the honest recommendation.
-- **Fly.io** has a smaller always-on allowance that may fit within free credit.
-- A free uptime pinger (UptimeRobot every 10 min) keeps it warm, at the cost of
-  burning the 750 monthly hours faster.
-
-### Why not Vercel for the API
-
-Vercel's serverless functions open a new database connection per invocation,
-which exhausts a free Postgres connection pool quickly. Prisma also has a slower
-cold start there. A long-running Node process (Render/Fly/Railway) is the right
-shape for this app.
-
----
-
-## Part 4 — Deployment steps
-
-### 4.1 Database (Neon)
-
-1. Create a project, region **Frankfurt** or **Paris** — lowest latency to Lebanon.
-2. Copy the pooled connection string.
-3. Apply the schema from your machine:
-
-```powershell
-$env:DATABASE_URL="postgresql://...neon..."
-npm --prefix server run db:deploy     # applies migrations; does NOT reset
-npm --prefix server run db:seed
-```
-
-`db:deploy`, not `db:migrate` — `migrate dev` can prompt to reset the database,
-which must never be possible against production.
-
-### 4.2 API (Render)
-
-- New **Web Service**, connect the repository, root directory `server`
-- Build: `npm install && npx prisma generate`
-- Start: `npm start`
-- Health check path: `/api/health`
-- Environment variables:
-
-```env
-NODE_ENV=production
-PORT=10000
-CLIENT_URL=https://lrc401.pages.dev      # or your domain — used for CORS and email links
-DATABASE_URL=<neon pooled string>
-JWT_ACCESS_SECRET=<fresh>
-JWT_REFRESH_SECRET=<fresh, different>
-JWT_MFA_SECRET=<fresh, different again>
-TOTP_ENC_KEY=<fresh 64 hex chars>
-EMAIL_TRANSPORT=smtp
-SMTP_HOST=... SMTP_PORT=587 SMTP_USER=... SMTP_PASS=...
-EMAIL_FROM="LRC Saida 401 <no-reply@yourdomain.org>"
-LOG_LEVEL=info
-```
-
-The server **refuses to start** if any secret is missing, weak, duplicated, or
-still the placeholder — and in production it additionally rejects
-`EMAIL_TRANSPORT=console` and a non-HTTPS `CLIENT_URL`. A boot failure with a
-clear message is the intended behaviour; a server that starts insecurely is not.
-
-### 4.3 Web app (Cloudflare Pages)
-
-- Root directory `client`, build `npm run build`, output `dist`
-- Add a redirect so client-side routing works on refresh — create
-  `client/public/_redirects`:
-
-```
-/api/*  https://your-api.onrender.com/api/:splat  200
-/*      /index.html                               200
-```
-
-The first line makes the API same-origin in production too, exactly as the Vite
-proxy does locally. That keeps the refresh cookie first-party — **this is the
-single most common thing that breaks between local and production**, because a
-cross-site cookie gets dropped and users are logged out on every reload.
+> **Superseded by [08-DEPLOYMENT.md](08-DEPLOYMENT.md).**
+>
+> This section used to recommend hosting the web app on Cloudflare Pages and
+> proxying `/api/*` to Render through `_redirects`. That proxy **cannot work**:
+> Cloudflare Pages only proxies relative paths, never an external domain. The
+> refresh cookie would have been dropped and every user logged out on reload.
+>
+> The app now runs as **one Render service** that serves both the API and the
+> web app (`SERVE_CLIENT=true`), with the database on Neon. The Blueprint is
+> [`render.yaml`](../render.yaml), and the full steps, including email through
+> Gmail for a demo, are in 08.
 
 ### 4.4 Post-deploy checklist
 

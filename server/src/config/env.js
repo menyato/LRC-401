@@ -43,6 +43,20 @@ const duration = z.string().regex(/^\d+[smhd]$/, 'must look like 15m, 2h or 7d')
 /** Environment variables arrive as strings; coerce the ones we want as numbers. */
 const numeric = (fallback) => z.coerce.number().int().positive().default(fallback);
 
+/**
+ * A boolean flag written as text in .env.
+ *
+ * NOT `z.coerce.boolean()`: that applies JavaScript truthiness, and the string
+ * "false" is truthy. `SMTP_SECURE=false` — exactly what .env.example ships —
+ * came out as `true`, which makes nodemailer attempt implicit TLS on port 587
+ * and every email fail with a TLS handshake error.
+ */
+const flag = (fallback) =>
+  z
+    .enum(['true', 'false', '1', '0', ''])
+    .optional()
+    .transform((value) => (value === undefined || value === '' ? fallback : value === 'true' || value === '1'));
+
 const schema = z
   .object({
     // --- Core ---------------------------------------------------------------
@@ -83,9 +97,14 @@ const schema = z
     EMAIL_FROM: z.string().default('LRC Saida 401 <no-reply@lrc401.org>'),
     SMTP_HOST: z.string().optional(),
     SMTP_PORT: z.coerce.number().int().positive().optional(),
-    SMTP_SECURE: z.coerce.boolean().default(false),
+    SMTP_SECURE: flag(false),
     SMTP_USER: z.string().optional(),
     SMTP_PASS: z.string().optional(),
+
+    // --- Hosting ------------------------------------------------------------
+    // Serve the built React app (client/dist) from this process, so the web
+    // app and the API share one origin. See docs/08-DEPLOYMENT.md.
+    SERVE_CLIENT: flag(false),
 
     // --- Seed ---------------------------------------------------------------
     SEED_SUPERADMIN_EMAIL: z.string().email().default('admin@lrc401.local'),

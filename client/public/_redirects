@@ -1,13 +1,12 @@
-# Cloudflare Pages / Netlify redirects — see docs/04-LAUNCH-ROADMAP.md
+# Only used if the web app is ever hosted as a static site (Netlify, Cloudflare
+# Pages). The recommended setup serves it from the API process instead
+# (SERVE_CLIENT=true) — see docs/08-DEPLOYMENT.md — and this file is ignored.
 #
-# 1. Proxy the API through the SAME origin as the web app.
-#    This is what keeps the httpOnly refresh cookie first-party in production,
-#    exactly as the Vite proxy does in development. Without it the browser
-#    drops the cookie and users are logged out on every page refresh — the
-#    single most common thing that breaks between local and production.
-#    Replace the host below with your deployed API.
-/api/*  https://your-api.onrender.com/api/:splat  200
+# Do NOT add an `/api/* https://your-api... 200` proxy line and expect it to
+# work on Cloudflare Pages: Pages only proxies relative paths on the same site,
+# never an external domain. Without a same-origin API the refresh cookie is
+# dropped and users are logged out on every reload.
 
-# 2. Single-page-app fallback: serve index.html for any other path so that
-#    refreshing on /reports/board does not 404 on the static host.
+# Single-page-app fallback: serve index.html for any path so that refreshing
+# on /reports/board does not 404 on a static host.
 /*      /index.html                               200

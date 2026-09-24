@@ -14,6 +14,22 @@ import { paginationQuery, sortQuery } from '../../utils/pagination.js';
 import { queryBoolean } from '../../utils/crudRouter.js';
 
 /**
+ * A signed movement quantity (ADJUST may be negative).
+ *
+ * Bounded because the columns are 32-bit integers: an unbounded `.int()`
+ * accepted 3 000 000 000, which then failed inside Postgres as a 500 instead of
+ * a clear validation message. A million units in one movement is already far
+ * beyond anything the station stocks.
+ */
+const MAX_MOVEMENT_QUANTITY = 1_000_000;
+const movementQuantity = z
+  .number()
+  .int()
+  .min(-MAX_MOVEMENT_QUANTITY)
+  .max(MAX_MOVEMENT_QUANTITY)
+  .refine((value) => value !== 0, 'Quantity cannot be zero');
+
+/**
  * A calendar date with no time component.
  *
  * We accept "YYYY-MM-DD" and build the Date at UTC midnight. Doing
@@ -179,7 +195,7 @@ export const createMovementSchema = z
      * ADJUST: may be negative, since a stock count can go either way.
      * The cross-field rule below enforces this.
      */
-    quantity: z.number().int().refine((value) => value !== 0, 'Quantity cannot be zero'),
+    quantity: movementQuantity,
 
     /** The real-world date, chosen by the user. Defaults to today. */
     movementDate: dateOnly.optional(),
@@ -230,7 +246,7 @@ export const createBulkMovementSchema = z.object({
     .array(
       z.object({
         itemId: z.string().cuid(),
-        quantity: z.number().int().refine((value) => value !== 0, 'Quantity cannot be zero'),
+        quantity: movementQuantity,
         size: z.string().trim().max(20).nullish(),
         batchNumber: z.string().trim().max(60).nullish(),
         expiryDate: dateOnly.nullish(),
