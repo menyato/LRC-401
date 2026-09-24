@@ -123,3 +123,5 @@ $RECYCLE.BIN/
 .claude/
 *.scratch
 __*-probe.*
+.vercel
+.env*
